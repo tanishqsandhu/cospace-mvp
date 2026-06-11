@@ -1,12 +1,10 @@
 'use client'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createClient, Listing } from '@/lib/supabase'
 import Link from 'next/link'
 import Header from '@/components/layout/Header'
 
 // ── Coordinate resolution ─────────────────────────────────────────────
-// Uses listing.latitude/longitude if present (future-proof), otherwise a
-// lookup for the seeded NYC listings, then a city-center fallback.
 const ADDRESS_COORDS: Record<string, [number, number]> = {
   '112 Greene St': [40.7240, -74.0010],
   '1065 Avenue of the Americas': [40.7530, -73.9847],
@@ -26,6 +24,26 @@ function coordsFor(l: Listing): [number, number] | null {
   if (l.city && CITY_COORDS[l.city]) return CITY_COORDS[l.city]
   return null
 }
+
+const esc = (s: string) =>
+  s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+
+const TYPE_LABELS: Record<string, string> = {
+  'entire place': 'Co Working',
+  'room': 'Office',
+  'shared room': 'Meeting Room',
+  'event space': 'Event Space',
+}
+const AMENITIES: { key: string; label: string }[] = [
+  { key: 'wifi', label: 'WiFi' },
+  { key: 'workspace', label: 'Workspace' },
+  { key: 'air_conditioning', label: 'A/C' },
+  { key: 'kitchen', label: 'Kitchen' },
+  { key: 'tv', label: 'TV' },
+  { key: 'free_parking', label: 'Free parking' },
+  { key: 'paid_parking', label: 'Paid parking' },
+  { key: 'washer', label: 'Washer' },
+]
 
 // ── Leaflet loader (CDN, client-only) ─────────────────────────────────
 let leafletPromise: Promise<any> | null = null
@@ -54,6 +72,7 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
   onEnter?: () => void
   onLeave?: () => void
 }) {
+  const tags = AMENITIES.filter((a) => (l as any)[a.key]).slice(0, 3)
   return (
     <Link
       href={`/rooms?id=${l.id}`}
@@ -68,7 +87,7 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
         ) : (
           <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
         )}
-        <span className="absolute top-2 left-2 bg-white/90 text-xs font-medium px-2 py-1 rounded-full capitalize">{l.type}</span>
+        <span className="absolute top-2 left-2 bg-white/90 text-xs font-medium px-2 py-1 rounded-full">{TYPE_LABELS[l.type] || l.type}</span>
         {l.avg_rating > 0 && (
           <span className="absolute top-2 right-2 bg-white/90 text-xs font-medium px-2 py-1 rounded-full">⭐ {l.avg_rating.toFixed(1)}</span>
         )}
@@ -77,6 +96,13 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
         <p className="font-semibold text-gray-900 truncate">{l.description || 'Workspace'}</p>
         <p className="text-sm text-gray-500 mt-1">{[l.city, l.country].filter(Boolean).join(', ')}</p>
         <p className="text-indigo-700 font-bold mt-2">${l.price}<span className="text-gray-400 font-normal text-sm"> / day</span></p>
+        {tags.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {tags.map((t) => (
+              <span key={t.key} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t.label}</span>
+            ))}
+          </div>
+        )}
       </div>
     </Link>
   )
@@ -89,12 +115,40 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true)
   const [hasSearched, setHasSearched] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
+
+  const [view, setView] = useState<'map' | 'list'>('map')
+  const [sortBy, setSortBy] = useState('recommended')
+  const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set())
+  const [amenityFilter, setAmenityFilter] = useState<Set<string>>(new Set())
+  const [maxPrice, setMaxPrice] = useState(0)
+
   const supabase = createClient()
 
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
   const markersRef = useRef<Record<string, any>>({})
   const cardRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
+  const hoverTimerRef = useRef<any>(null)
+
+  const cancelPopup = () => {
+    if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null }
+  }
+  const schedulePopup = (id: string) => {
+    cancelPopup()
+    hoverTimerRef.current = setTimeout(() => {
+      const m = markersRef.current[id]
+      if (m && m.openPopup) m.openPopup()
+    }, 450)
+  }
+  const toggleSet = (
+    setter: (s: Set<string>) => void,
+    current: Set<string>,
+    key: string,
+  ) => {
+    const next = new Set(current)
+    if (next.has(key)) next.delete(key); else next.add(key)
+    setter(next)
+  }
 
   useEffect(() => { fetchListings() }, [])
 
@@ -121,16 +175,27 @@ export default function HomePage() {
   }
 
   const coverImage = (l: Listing) =>
-    l.listing_images?.sort((a, b) => a.position - b.position)[0]?.url
+    l.listing_images?.slice().sort((a, b) => a.position - b.position)[0]?.url
 
-  // Build / rebuild the map when entering search view or results change
+  const filtered = useMemo(() => {
+    let arr = listings.slice()
+    if (typeFilter.size) arr = arr.filter((l) => typeFilter.has(l.type))
+    if (amenityFilter.size) arr = arr.filter((l) => Array.from(amenityFilter).every((k) => (l as any)[k]))
+    if (maxPrice) arr = arr.filter((l) => (l.price ?? 0) <= maxPrice)
+    if (sortBy === 'price_asc') arr.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+    else if (sortBy === 'price_desc') arr.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+    else if (sortBy === 'rating_desc') arr.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0))
+    return arr
+  }, [listings, typeFilter, amenityFilter, maxPrice, sortBy])
+
+  // Build / rebuild the map (map view only) when results change
   useEffect(() => {
-    if (!hasSearched) return
+    if (!hasSearched || view !== 'map') return
     let cancelled = false
     loadLeaflet().then((L) => {
       if (cancelled || !L || !mapElRef.current) return
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-      const pts = listings
+      const pts = filtered
         .map((l) => ({ l, c: coordsFor(l) }))
         .filter((x) => x.c) as { l: Listing; c: [number, number] }[]
       const center: [number, number] = pts.length ? pts[0].c : [40.7549, -73.9840]
@@ -149,12 +214,23 @@ export default function HomePage() {
           iconAnchor: [23, 13],
         })
         const m = L.marker(c, { icon }).addTo(map)
+        const cover = coverImage(l)
+        const popHtml =
+          `<a class="cs-pop" href="/rooms?id=${l.id}">` +
+          (cover ? `<img src="${cover}" alt="" />` : '') +
+          `<div class="cs-pop-body">` +
+          `<div class="cs-pop-title">${esc(l.description || 'Workspace')}</div>` +
+          `<div class="cs-pop-loc">${esc([l.city, l.country].filter(Boolean).join(', '))}</div>` +
+          `<div class="cs-pop-price">$${l.price} <span>/ day</span></div>` +
+          `</div></a>`
+        m.bindPopup(popHtml, { className: 'cs-popup', minWidth: 220, maxWidth: 240, offset: [0, -10] })
         m.on('mouseover', () => {
           setHoveredId(l.id)
           const el = cardRefs.current[l.id]
           if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+          schedulePopup(l.id)
         })
-        m.on('mouseout', () => setHoveredId(null))
+        m.on('mouseout', () => { setHoveredId(null); cancelPopup() })
         m.on('click', () => { window.location.href = `/rooms?id=${l.id}` })
         markersRef.current[l.id] = m
       })
@@ -165,11 +241,12 @@ export default function HomePage() {
     })
     return () => {
       cancelled = true
+      cancelPopup()
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
     }
-  }, [hasSearched, listings])
+  }, [hasSearched, view, filtered])
 
-  // Highlight markers when hoveredId changes
+  // Highlight markers when hoveredId changes (no panning)
   useEffect(() => {
     Object.entries(markersRef.current).forEach(([id, m]: [string, any]) => {
       const el = m.getElement && m.getElement()
@@ -179,12 +256,59 @@ export default function HomePage() {
     })
   }, [hoveredId])
 
-  const panToListing = (l: Listing) => {
-    const m = markersRef.current[l.id]
-    if (m && mapRef.current) mapRef.current.panTo(m.getLatLng())
-  }
+  const withCoords = filtered.filter((l) => coordsFor(l))
 
-  const withCoords = listings.filter((l) => coordsFor(l))
+  const filterBar = (
+    <div className="border-b bg-white sticky top-0 z-[500]">
+      <div className="max-w-[1600px] mx-auto px-5 py-3 flex flex-wrap items-center gap-2">
+        <select value={sortBy} onChange={(e) => setSortBy(e.target.value)} className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+          <option value="recommended">Recommended</option>
+          <option value="price_asc">Price: low to high</option>
+          <option value="price_desc">Price: high to low</option>
+          <option value="rating_desc">Top rated</option>
+        </select>
+        <select value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
+          <option value={0}>Any price</option>
+          <option value={50}>Up to $50</option>
+          <option value={100}>Up to $100</option>
+          <option value={250}>Up to $250</option>
+          <option value={500}>Up to $500</option>
+        </select>
+        {Object.keys(TYPE_LABELS).map((t) => (
+          <button
+            key={t}
+            onClick={() => toggleSet(setTypeFilter, typeFilter, t)}
+            className={`text-sm px-3 py-2 rounded-lg border transition ${typeFilter.has(t) ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'}`}
+          >
+            {TYPE_LABELS[t]}
+          </button>
+        ))}
+        {AMENITIES.slice(0, 5).map((a) => (
+          <button
+            key={a.key}
+            onClick={() => toggleSet(setAmenityFilter, amenityFilter, a.key)}
+            className={`text-sm px-3 py-2 rounded-lg border transition ${amenityFilter.has(a.key) ? 'bg-indigo-50 text-indigo-700 border-indigo-300' : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'}`}
+          >
+            {a.label}
+          </button>
+        ))}
+        <div className="ml-auto flex rounded-lg border border-gray-300 overflow-hidden">
+          <button onClick={() => setView('list')} className={`text-sm px-4 py-2 ${view === 'list' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>List</button>
+          <button onClick={() => setView('map')} className={`text-sm px-4 py-2 ${view === 'map' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-700'}`}>Map</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  const resultsHeader = (
+    <>
+      <h2 className="text-xl font-bold">{activeQuery ? `Results for "${activeQuery}"` : 'All spaces'}</h2>
+      <p className="text-sm text-gray-500 mb-5">
+        {filtered.length} space{filtered.length === 1 ? '' : 's'}
+        {view === 'map' && withCoords.length < filtered.length ? ' · some not shown on map' : ''}
+      </p>
+    </>
+  )
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -195,6 +319,15 @@ export default function HomePage() {
           box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:all .12s; }
         .cs-pin-active { background:#4f46e5; color:#fff; transform:scale(1.12); }
         .leaflet-container { font: inherit; }
+        .cs-popup .leaflet-popup-content-wrapper { padding:0; overflow:hidden; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.18); }
+        .cs-popup .leaflet-popup-content { margin:0; width:220px !important; }
+        .cs-popup a.cs-pop { display:block; text-decoration:none; color:inherit; }
+        .cs-pop img { width:100%; height:120px; object-fit:cover; display:block; }
+        .cs-pop-body { padding:9px 11px 11px; }
+        .cs-pop-title { font-weight:600; font-size:13px; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cs-pop-loc { font-size:12px; color:#6b7280; margin-top:1px; }
+        .cs-pop-price { font-size:13px; font-weight:700; color:#4338ca; margin-top:4px; }
+        .cs-pop-price span { font-weight:400; color:#9ca3af; }
       `}</style>
 
       {/* Hero / search */}
@@ -245,46 +378,68 @@ export default function HomePage() {
           )}
         </div>
       ) : (
-        /* Search results: cards on the left, map on the right */
-        <div className="flex-1 flex flex-col lg:flex-row w-full mx-auto max-w-[1600px]">
-          <div
-            className="lg:w-[48%] xl:w-[44%] w-full overflow-y-auto px-5 py-6"
-            style={{ maxHeight: 'calc(100vh - 64px)' }}
-          >
-            <h2 className="text-xl font-bold">
-              {activeQuery ? `Results for "${activeQuery}"` : 'All spaces'}
-            </h2>
-            <p className="text-sm text-gray-500 mb-5">
-              {listings.length} space{listings.length === 1 ? '' : 's'} found
-              {withCoords.length < listings.length ? ' · some not shown on map' : ''}
-            </p>
-            {loading ? (
-              <p className="text-gray-400 py-10">Loading…</p>
-            ) : listings.length === 0 ? (
-              <p className="text-gray-500 py-10">No spaces found. Try a different search.</p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {listings.map((l) => (
-                  <SpaceCard
-                    key={l.id}
-                    l={l}
-                    cover={coverImage(l)}
-                    highlighted={hoveredId === l.id}
-                    refCb={(el) => { cardRefs.current[l.id] = el }}
-                    onEnter={() => { setHoveredId(l.id); panToListing(l) }}
-                    onLeave={() => setHoveredId(null)}
-                  />
-                ))}
+        <>
+          {filterBar}
+          {view === 'list' ? (
+            /* List view: full-width grid */
+            <div className="max-w-7xl mx-auto px-5 py-6 w-full">
+              {resultsHeader}
+              {loading ? (
+                <p className="text-gray-400 py-10">Loading…</p>
+              ) : filtered.length === 0 ? (
+                <p className="text-gray-500 py-10">No spaces match your filters.</p>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filtered.map((l) => (
+                    <SpaceCard
+                      key={l.id}
+                      l={l}
+                      cover={coverImage(l)}
+                      highlighted={hoveredId === l.id}
+                      onEnter={() => setHoveredId(l.id)}
+                      onLeave={() => setHoveredId(null)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Map view: cards on the left, map on the right */
+            <div className="flex-1 flex flex-col lg:flex-row w-full mx-auto max-w-[1600px]">
+              <div
+                className="lg:w-[48%] xl:w-[44%] w-full overflow-y-auto px-5 py-6"
+                style={{ maxHeight: 'calc(100vh - 120px)' }}
+              >
+                {resultsHeader}
+                {loading ? (
+                  <p className="text-gray-400 py-10">Loading…</p>
+                ) : filtered.length === 0 ? (
+                  <p className="text-gray-500 py-10">No spaces match your filters.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                    {filtered.map((l) => (
+                      <SpaceCard
+                        key={l.id}
+                        l={l}
+                        cover={coverImage(l)}
+                        highlighted={hoveredId === l.id}
+                        refCb={(el) => { cardRefs.current[l.id] = el }}
+                        onEnter={() => { setHoveredId(l.id); schedulePopup(l.id) }}
+                        onLeave={() => { setHoveredId(null); cancelPopup() }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-          <div
-            className="hidden lg:block lg:flex-1 sticky top-0 bg-gray-200"
-            style={{ height: 'calc(100vh - 64px)' }}
-          >
-            <div ref={mapElRef} className="w-full h-full" />
-          </div>
-        </div>
+              <div
+                className="hidden lg:block lg:flex-1 sticky top-0 bg-gray-200"
+                style={{ height: 'calc(100vh - 120px)' }}
+              >
+                <div ref={mapElRef} className="w-full h-full" />
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   )

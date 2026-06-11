@@ -59,7 +59,7 @@ export default function BookingsPage() {
               const imgs = (b.listings as any)?.listing_images?.sort((a: any, z: any) => a.position - z.position)
               const cover = imgs?.[0]?.url
               return (
-                <div key={b.id} className="bg-white rounded-xl shadow p-4 flex gap-4">
+                <Link key={b.id} href={`/bookings/${b.id}`} className="bg-white rounded-xl shadow p-4 flex gap-4 hover:shadow-md transition">
                   <div className="w-24 h-24 rounded-lg bg-gray-100 flex-shrink-0 overflow-hidden">
                     {cover && <img src={cover} alt="" className="w-full h-full object-cover" />}
                   </div>
@@ -77,10 +77,10 @@ export default function BookingsPage() {
                     </p>
                     <p className="text-indigo-700 font-semibold mt-1">${b.total_price.toFixed(2)} total</p>
                     {b.status === 'confirmed' && (
-                      <button onClick={() => handleCancel(b.id)} className="mt-2 text-xs text-red-600 hover:underline">Cancel booking</button>
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCancel(b.id) }} className="mt-2 text-xs text-red-600 hover:underline">Cancel booking</button>
                     )}
                   </div>
-                </div>
+                </Link>
               )
             })}
           </div>

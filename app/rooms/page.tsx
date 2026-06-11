@@ -21,6 +21,7 @@ export default function RoomsPage() {
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [slots, setSlots] = useState(1)
+  const [lightbox, setLightbox] = useState<number | null>(null)
   const [dateValue, setDateValue] = useState({
     startDate: moment().format('YYYY-MM-DD'),
     endDate: moment().add(5, 'days').format('YYYY-MM-DD')
@@ -56,8 +57,9 @@ export default function RoomsPage() {
   const handleReserve = async () => {
     if (!user) { router.push('/auth/login?redirect=/rooms?id=' + listingId); return }
     if (!listing) return
+    const bookSlots = listing.type === 'event space' ? 1 : slots
     const { perDayPrice, totalDays, totalPrice } = calculateBookingTotal(
-      dateValue.startDate, dateValue.endDate, slots,
+      dateValue.startDate, dateValue.endDate, bookSlots,
       listing.price!, listing.per_day_offers || [], listing.holiday_dates || []
     )
     const { data: booking, error } = await supabase.from('bookings').insert({
@@ -66,7 +68,7 @@ export default function RoomsPage() {
       host_id: listing.host_id,
       start_date: dateValue.startDate,
       end_date: dateValue.endDate,
-      slots, per_day_price: perDayPrice, total_days: totalDays, total_price: totalPrice,
+      slots: bookSlots, per_day_price: perDayPrice, total_days: totalDays, total_price: totalPrice,
     }).select().single()
     if (error) { toast.error('Could not complete booking'); return }
     toast.success('Booking confirmed!')
@@ -94,8 +96,10 @@ export default function RoomsPage() {
   if (!listing) return <div className="min-h-screen bg-gray-50"><Header /><p className="text-center py-20">Listing not found.</p></div>
 
   const images = listing.listing_images?.sort((a, b) => a.position - b.position) || []
+  const isEventSpace = listing.type === 'event space'
+  const effSlots = isEventSpace ? 1 : slots
   const { perDayPrice, totalDays, totalPrice } = calculateBookingTotal(
-    dateValue.startDate, dateValue.endDate, slots,
+    dateValue.startDate, dateValue.endDate, effSlots,
     listing.price!, listing.per_day_offers || [], listing.holiday_dates || []
   )
 
@@ -115,11 +119,17 @@ export default function RoomsPage() {
         {/* Image gallery */}
         {images.length > 0 && (
           <div className="grid grid-cols-2 gap-3 mt-6">
-            <img src={images[0].url} alt="" className="rounded-lg w-full h-72 object-cover" />
-            <div className="grid grid-cols-2 gap-3">
+            <img src={images[0].url} alt="" onClick={() => setLightbox(0)} className="rounded-lg w-full h-72 object-cover cursor-pointer hover:opacity-95 transition" />
+            <div className="grid grid-cols-2 gap-3 relative">
               {images.slice(1, 5).map((img, i) => (
-                <img key={i} src={img.url} alt="" className="rounded-lg w-full h-[138px] object-cover" />
+                <img key={i} src={img.url} alt="" onClick={() => setLightbox(i + 1)} className="rounded-lg w-full h-[138px] object-cover cursor-pointer hover:opacity-95 transition" />
               ))}
+              {images.length > 1 && (
+                <button onClick={() => setLightbox(0)}
+                  className="absolute bottom-2 right-2 bg-white/90 text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg shadow hover:bg-white">
+                  View all {images.length} photos
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -216,16 +226,18 @@ export default function RoomsPage() {
                 />
               </div>
 
-              <div className="flex items-center justify-between border rounded-lg px-3 py-2 mb-4">
-                <span className="text-sm font-medium">Slots</span>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setSlots(Math.max(1, slots - 1))}
-                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold">−</button>
-                  <span className="w-4 text-center">{slots}</span>
-                  <button onClick={() => setSlots(slots + 1)}
-                    className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold">+</button>
+              {!isEventSpace && (
+                <div className="flex items-center justify-between border rounded-lg px-3 py-2 mb-4">
+                  <span className="text-sm font-medium">Slots</span>
+                  <div className="flex items-center gap-3">
+                    <button onClick={() => setSlots(Math.max(1, slots - 1))}
+                      className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold">−</button>
+                    <span className="w-4 text-center">{slots}</span>
+                    <button onClick={() => setSlots(slots + 1)}
+                      className="w-7 h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center font-bold">+</button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <button onClick={handleReserve}
                 className="w-full bg-indigo-600 text-white font-semibold py-3 rounded-lg hover:bg-indigo-700 mb-4">
@@ -234,7 +246,7 @@ export default function RoomsPage() {
 
               <div className="space-y-2 text-sm text-gray-600 border-t pt-4">
                 <div className="flex justify-between">
-                  <span>${perDayPrice} × {totalDays} days × {slots} {slots === 1 ? 'slot' : 'slots'}</span>
+                  <span>${perDayPrice} × {totalDays} days{isEventSpace ? '' : ` × ${effSlots} ${effSlots === 1 ? 'slot' : 'slots'}`}</span>
                   <span>${totalPrice.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-bold text-gray-900 pt-2 border-t">
@@ -245,6 +257,22 @@ export default function RoomsPage() {
           </div>
         </div>
       </div>
+
+      {lightbox !== null && images[lightbox] && (
+        <div onClick={() => setLightbox(null)} className="fixed inset-0 z-[1000] bg-black/90 flex items-center justify-center">
+          <button onClick={() => setLightbox(null)} className="absolute top-4 right-5 text-white text-4xl leading-none">×</button>
+          {images.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setLightbox((lightbox - 1 + images.length) % images.length) }}
+              className="absolute left-3 text-white text-5xl px-3 py-2 select-none">‹</button>
+          )}
+          <img src={images[lightbox].url} alt="" onClick={(e) => e.stopPropagation()} className="max-h-[85vh] max-w-[88vw] object-contain rounded-lg" />
+          {images.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setLightbox((lightbox + 1) % images.length) }}
+              className="absolute right-3 text-white text-5xl px-3 py-2 select-none">›</button>
+          )}
+          <div className="absolute bottom-5 text-white text-sm">{lightbox + 1} / {images.length}</div>
+        </div>
+      )}
     </div>
   )
 }

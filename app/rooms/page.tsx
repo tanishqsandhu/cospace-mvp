@@ -41,7 +41,7 @@ export default function RoomsPage() {
     if (data) {
       setListing(data)
       // increment view counter
-      await supabase.rpc('increment_view' as any, { p_listing_id: listingId }).catch(() => {})
+      await supabase.rpc('increment_view' as any, { p_listing_id: listingId })
     }
     // fetch reviews
     const { data: revData } = await supabase

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { createClient, Booking } from '@/lib/supabase'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import moment from 'moment'
 import toast from 'react-hot-toast'
@@ -12,13 +12,35 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const supabase = createClient()
   const router = useRouter()
+  const params = useSearchParams()
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (!data.user) { router.push('/auth/login'); return }
       fetchBookings(data.user.id)
     })
+    if (params.get('paid') === '1') toast.success('Payment successful — booking confirmed!')
+    if (params.get('canceled') === '1') toast('Payment canceled. Your booking is still pending.')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  const resumePayment = async (id: string) => {
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: id }),
+      })
+      const json = await res.json()
+      if (json?.unconfigured) {
+        await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', id)
+        toast.success('Booking confirmed!')
+        setBookings(b => b.map(bk => bk.id === id ? { ...bk, status: 'confirmed' } : bk))
+        return
+      }
+      if (!res.ok || !json?.url) { toast.error(json?.error || 'Could not start checkout'); return }
+      window.location.href = json.url
+    } catch { toast.error('Could not reach checkout') }
+  }
 
   const fetchBookings = async (userId: string) => {
     const { data } = await supabase
@@ -38,6 +60,7 @@ export default function BookingsPage() {
   }
 
   const statusColor = (status: string) => ({
+    pending: 'bg-amber-100 text-amber-800',
     confirmed: 'bg-green-100 text-green-800',
     cancelled: 'bg-red-100 text-red-800',
     completed: 'bg-blue-100 text-blue-800',
@@ -76,8 +99,11 @@ export default function BookingsPage() {
                       {' · '}{b.slots} {b.slots === 1 ? 'slot' : 'slots'}
                     </p>
                     <p className="text-indigo-700 font-semibold mt-1">${b.total_price.toFixed(2)} total</p>
-                    {b.status === 'confirmed' && (
-                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCancel(b.id) }} className="mt-2 text-xs text-red-600 hover:underline">Cancel booking</button>
+                    {b.status === 'pending' && !b.paid && (
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); resumePayment(b.id) }} className="mt-2 ml-0 inline-block bg-indigo-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-indigo-700">Complete payment</button>
+                    )}
+                    {(b.status === 'confirmed' || b.status === 'pending') && (
+                      <button onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleCancel(b.id) }} className="mt-2 ml-3 text-xs text-red-600 hover:underline">Cancel booking</button>
                     )}
                   </div>
                 </Link>

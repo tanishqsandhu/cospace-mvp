@@ -20,10 +20,29 @@ export interface Profile {
   state: string | null
   zip_code: string | null
   is_host: boolean
+  is_admin: boolean
   is_email_verified: boolean
   profile_completed: boolean
   created_at: string
   updated_at: string
+}
+
+export interface Building {
+  id: string
+  host_id: string
+  name: string | null
+  address: string | null
+  address_etc: string | null
+  city: string | null
+  state: string | null
+  country: string | null
+  zip_code: string | null
+  lat: number | null
+  lng: number | null
+  description: string | null
+  created_at: string
+  updated_at: string
+  listings?: Listing[]
 }
 
 export interface PerDayOffer {
@@ -40,6 +59,9 @@ export interface HolidayDate {
 export interface Listing {
   id: string
   host_id: string
+  building_id: string | null
+  unit_name: string | null
+  auto_approve: boolean
   type: string
   country: string | null
   address: string | null
@@ -70,6 +92,7 @@ export interface Listing {
   updated_at: string
   listing_images?: ListingImage[]
   profiles?: Profile
+  buildings?: Building
 }
 
 export interface ListingImage {

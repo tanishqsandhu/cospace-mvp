@@ -69,10 +69,29 @@ export default function RoomsPage() {
       start_date: dateValue.startDate,
       end_date: dateValue.endDate,
       slots: bookSlots, per_day_price: perDayPrice, total_days: totalDays, total_price: totalPrice,
+      status: 'pending', paid: false,
     }).select().single()
-    if (error) { toast.error('Could not complete booking'); return }
-    toast.success('Booking confirmed!')
-    router.push('/bookings')
+    if (error || !booking) { toast.error('Could not start booking'); return }
+
+    // Hand off to Stripe Checkout. If Stripe isn't configured yet, confirm directly.
+    try {
+      const res = await fetch('/api/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookingId: booking.id }),
+      })
+      const json = await res.json()
+      if (json?.unconfigured) {
+        await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', booking.id)
+        toast.success('Booking confirmed!')
+        router.push('/bookings')
+        return
+      }
+      if (!res.ok || !json?.url) { toast.error(json?.error || 'Could not start checkout'); return }
+      window.location.href = json.url
+    } catch {
+      toast.error('Could not reach checkout')
+    }
   }
 
   const handleReview = async () => {

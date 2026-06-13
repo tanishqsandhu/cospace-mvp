@@ -12,6 +12,7 @@ const TYPE_LABELS: Record<string, string> = {
 const AMENITIES: { key: string; label: string }[] = [
   { key: 'wifi', label: 'WiFi' }, { key: 'air_conditioning', label: 'A/C' }, { key: 'workspace', label: 'Desks' },
   { key: 'kitchen', label: 'Kitchen' }, { key: 'tv', label: 'TV' }, { key: 'free_parking', label: 'Free parking' },
+  { key: 'paid_parking', label: 'Paid parking' }, { key: 'washer', label: 'Washer' },
 ]
 const firstImage = (l: Listing) => l.listing_images?.slice().sort((a, b) => a.position - b.position)[0]?.url
 
@@ -55,6 +56,10 @@ export default function BuildingPage() {
   const prices = units.map((u) => u.price ?? 0)
   const minPrice = prices.length ? Math.min(...prices) : 0
   const maxPrice = prices.length ? Math.max(...prices) : 0
+  const rated = units.filter((u) => (u.avg_rating || 0) > 0)
+  const avgRating = rated.length ? rated.reduce((acc, u) => acc + (u.avg_rating || 0), 0) / rated.length : 0
+  const reviewCount = units.reduce((acc, u) => acc + (u.review_count || 0), 0)
+  const buildingAmenities = AMENITIES.filter((a) => units.some((u) => (u as any)[a.key]))
 
   return (
     <div className="min-h-screen bg-gray-50"><Header />
@@ -67,6 +72,7 @@ export default function BuildingPage() {
           <p className="text-sm text-gray-500 mt-1">
             {units.length} bookable space{units.length === 1 ? '' : 's'}
             {prices.length ? ` \u00b7 ${minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}\u2013$${maxPrice}`} / day` : ''}
+            {avgRating > 0 ? ` \u00b7 \u2b50 ${avgRating.toFixed(1)} (${reviewCount} review${reviewCount === 1 ? '' : 's'})` : ''}
           </p>
         </div>
 
@@ -82,6 +88,15 @@ export default function BuildingPage() {
           <div className="mt-6 border-b pb-6">
             <h2 className="text-lg font-bold mb-2">About this building</h2>
             <p className="text-gray-600">{building.description}</p>
+          </div>
+        )}
+
+        {buildingAmenities.length > 0 && (
+          <div className="mt-6 border-b pb-6">
+            <h2 className="text-lg font-bold mb-3">What this building offers</h2>
+            <div className="flex flex-wrap gap-2">
+              {buildingAmenities.map((a) => <span key={a.key} className="text-sm bg-gray-100 text-gray-700 px-3 py-1.5 rounded-full">{a.label}</span>)}
+            </div>
           </div>
         )}
 

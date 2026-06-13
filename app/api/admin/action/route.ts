@@ -25,7 +25,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true })
   }
   if (body.action === 'set_incident_status') {
-    await admin.from('incidents').update({ status: body.status, updated_at: new Date().toISOString() }).eq('id', body.incidentId)
+    const upd: any = { status: body.status, updated_at: new Date().toISOString() }
+    if (typeof body.note === 'string') upd.resolution_note = body.note
+    await admin.from('incidents').update(upd).eq('id', body.incidentId)
     return NextResponse.json({ ok: true })
   }
   if (body.action === 'set_user_flag') {

@@ -224,7 +224,7 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-500 capitalize">{it.severity}</td>
                     <td className="px-4 py-3 text-gray-500">{name(it.profiles)}</td>
                     <td className="px-4 py-3 text-gray-500">{moment(it.created_at).format('ll')}</td>
-                    <td className="px-4 py-3"><Link href={`/bookings/${it.booking_id}`} className="text-indigo-600 hover:underline">view</Link></td>
+                    <td className="px-4 py-3"><Link href={`/incident/${it.id}`} className="text-indigo-600 hover:underline">open</Link></td>
                     <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs ${it.status === 'resolved' ? 'bg-green-100 text-green-700' : it.status === 'reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{it.status}</span></td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {it.status !== 'reviewed' && <button onClick={() => action({ action: 'set_incident_status', incidentId: it.id, status: 'reviewed' }, 'Marked reviewed')} className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 mr-1">Reviewed</button>}

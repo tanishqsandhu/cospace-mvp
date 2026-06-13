@@ -148,9 +148,20 @@ export interface Incident {
   category: string
   severity: string
   description: string | null
+  photos: string[] | null
+  resolution_note: string | null
   status: 'open' | 'reviewed' | 'resolved'
   created_at: string
   updated_at: string
   profiles?: Profile
   bookings?: Booking
+}
+
+export interface IncidentMessage {
+  id: string
+  incident_id: string
+  sender_id: string | null
+  body: string
+  created_at: string
+  profiles?: Profile
 }

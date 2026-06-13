@@ -38,6 +38,8 @@ export default function BookingDetailPage() {
   const [showReport, setShowReport] = useState(false)
   const [filingInc, setFilingInc] = useState(false)
   const [incForm, setIncForm] = useState({ category: '', severity: 'medium', description: '' })
+  const [incPhotos, setIncPhotos] = useState<string[]>([])
+  const [incUploading, setIncUploading] = useState(false)
   const [qrUrl, setQrUrl] = useState('')
   const [chatUnavailable, setChatUnavailable] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
@@ -101,12 +103,29 @@ export default function BookingDetailPage() {
     setIncidents(j.incidents || [])
   }
 
+  const uploadIncPhotos = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || !files.length) return
+    setIncUploading(true)
+    const { data: { user: u } } = await supabase.auth.getUser()
+    if (!u) { setIncUploading(false); return }
+    const added: string[] = []
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i]
+      const path = `${u.id}/incident-${Date.now()}-${i}-${f.name}`
+      const { error } = await supabase.storage.from('listing-images').upload(path, f)
+      if (!error) { const { data: { publicUrl } } = supabase.storage.from('listing-images').getPublicUrl(path); added.push(publicUrl) }
+    }
+    setIncPhotos((prev) => [...prev, ...added])
+    setIncUploading(false)
+  }
+
   const fileIncident = async () => {
     if (!incForm.category) return
     setFilingInc(true)
     const res = await fetch('/api/incident', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ bookingId, ...incForm }),
+      body: JSON.stringify({ bookingId, ...incForm, photos: incPhotos }),
     })
     setFilingInc(false)
     const j = await res.json()
@@ -114,6 +133,7 @@ export default function BookingDetailPage() {
     toast.success('Report submitted')
     setShowReport(false)
     setIncForm({ category: '', severity: 'medium', description: '' })
+    setIncPhotos([])
     fetchIncidents()
   }
 
@@ -213,14 +233,19 @@ export default function BookingDetailPage() {
               ) : (
                 <div className="space-y-2 mb-3">
                   {incidents.map((it) => (
-                    <div key={it.id} className="border border-gray-100 rounded-lg px-3 py-2">
+                    <Link key={it.id} href={`/incident/${it.id}`} className="block border border-gray-100 rounded-lg px-3 py-2 hover:border-indigo-200 hover:bg-indigo-50/40 transition">
                       <div className="flex items-center justify-between">
                         <span className="text-sm font-medium capitalize">{it.category}</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full ${it.status === 'resolved' ? 'bg-green-100 text-green-700' : it.status === 'reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{it.status}</span>
                       </div>
                       {it.description && <p className="text-xs text-gray-500 mt-1">{it.description}</p>}
-                      <p className="text-[10px] text-gray-400 mt-1">{moment(it.created_at).format('lll')} · {it.severity}</p>
-                    </div>
+                      {it.photos?.length > 0 && (
+                        <div className="flex gap-1 mt-1">
+                          {it.photos.slice(0, 4).map((src: string, j: number) => <img key={j} src={src} alt="" className="w-10 h-10 rounded object-cover" />)}
+                        </div>
+                      )}
+                      <p className="text-[10px] text-gray-400 mt-1">{moment(it.created_at).format('lll')} · {it.severity} · View & discuss →</p>
+                    </Link>
                   ))}
                 </div>
               )}
@@ -244,6 +269,13 @@ export default function BookingDetailPage() {
                   </select>
                   <textarea value={incForm.description} onChange={(e) => setIncForm({ ...incForm, description: e.target.value })} rows={3}
                     placeholder="What happened?" className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm" />
+                  <div className="flex flex-wrap gap-2">
+                    {incPhotos.map((src, j) => <img key={j} src={src} alt="" className="w-14 h-14 rounded object-cover" />)}
+                    <label className="w-14 h-14 border-2 border-dashed border-gray-300 rounded flex items-center justify-center cursor-pointer text-xs text-gray-400 text-center">
+                      {incUploading ? 'Uploading' : '+ Photo'}
+                      <input type="file" multiple accept="image/*" className="hidden" disabled={incUploading} onChange={uploadIncPhotos} />
+                    </label>
+                  </div>
                   <div className="flex gap-2">
                     <button onClick={fileIncident} disabled={filingInc || !incForm.category}
                       className="bg-indigo-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">

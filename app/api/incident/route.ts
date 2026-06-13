@@ -13,7 +13,7 @@ async function getUser() {
 export async function POST(req: Request) {
   const user = await getUser()
   if (!user) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 })
-  const { bookingId, category, severity, description } = await req.json()
+  const { bookingId, category, severity, description, photos } = await req.json()
   if (!bookingId || !category) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   const admin = createAdminSupabase()
   const { data: booking } = await admin.from('bookings').select('guest_id, host_id').eq('id', bookingId).single()
@@ -23,6 +23,7 @@ export async function POST(req: Request) {
   const { error } = await admin.from('incidents').insert({
     booking_id: bookingId, reporter_id: user.id,
     category, severity: severity || 'medium', description: description || null,
+    photos: Array.isArray(photos) ? photos : [],
   })
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })

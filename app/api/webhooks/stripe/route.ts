@@ -25,11 +25,18 @@ export async function POST(req: Request) {
     const bookingId = session.metadata?.booking_id || session.client_reference_id
     if (bookingId) {
       const admin = createAdminSupabase()
+      // Auto-approve units confirm on payment; others wait for host approval.
+      const { data: bk } = await admin
+        .from('bookings')
+        .select('listings(auto_approve)')
+        .eq('id', bookingId)
+        .single()
+      const autoApprove = (bk as any)?.listings?.auto_approve ?? true
       await admin
         .from('bookings')
         .update({
           paid: true,
-          status: 'confirmed',
+          status: autoApprove ? 'confirmed' : 'awaiting_approval',
           stripe_payment_intent_id:
             typeof session.payment_intent === 'string' ? session.payment_intent : null,
         })

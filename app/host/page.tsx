@@ -8,9 +8,10 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import Header from '@/components/layout/Header'
 import { countDaysExcludingHolidays } from '@/lib/pricing'
+import toast from 'react-hot-toast'
 
 export default function HostPage() {
-  const [tab, setTab] = useState<'today' | 'calendar' | 'reviews' | 'earnings'>('today')
+  const [tab, setTab] = useState<'today' | 'requests' | 'calendar' | 'reviews' | 'earnings'>('today')
   const [listings, setListings] = useState<Listing[]>([])
   const [selectedListing, setSelectedListing] = useState<string | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -44,6 +45,18 @@ export default function HostPage() {
     setBookings(data || [])
   }
 
+  const respond = async (id: string, action: 'approve' | 'decline') => {
+    const res = await fetch('/api/booking-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: id, action }),
+    })
+    const j = await res.json()
+    if (!res.ok) { toast.error(j?.error || 'Action failed'); return }
+    toast.success(action === 'approve' ? 'Booking approved' : 'Declined & refunded')
+    if (selectedListing) fetchBookings(selectedListing)
+  }
+
+
   const calendarEvents = bookings.filter(b => b.status !== 'cancelled').map((b, i) => ({
     id: String(i), title: `${(b.profiles as any)?.first_name || 'Guest'} (${b.slots} slot${b.slots > 1 ? 's' : ''})`,
     start: b.start_date, end: moment(b.end_date).add(1, 'day').format('YYYY-MM-DD'),
@@ -51,6 +64,7 @@ export default function HostPage() {
   }))
 
   const listing = listings.find(l => l.id === selectedListing)
+  const pendingRequests = bookings.filter(b => b.status === 'awaiting_approval')
 
   const totalEarnings = bookings
     .filter(b => b.status !== 'cancelled')
@@ -60,6 +74,7 @@ export default function HostPage() {
 
   const tabs: { key: typeof tab, label: string }[] = [
     { key: 'today', label: 'Today' },
+    { key: 'requests', label: 'Requests' },
     { key: 'calendar', label: 'Calendar' },
     { key: 'earnings', label: 'Earnings' },
   ]
@@ -139,6 +154,25 @@ export default function HostPage() {
                     ))}
                   </tbody>
                 </table>
+              </div>
+            )}
+
+            {tab === 'requests' && (
+              <div className="bg-white rounded-xl shadow overflow-hidden">
+                {pendingRequests.length === 0 ? (
+                  <p className="text-center py-10 text-gray-400 text-sm">No pending requests</p>
+                ) : pendingRequests.map(b => (
+                  <div key={b.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
+                    <div>
+                      <p className="font-medium text-sm">{(b.profiles as any)?.first_name} {(b.profiles as any)?.last_name}</p>
+                      <p className="text-xs text-gray-400">{moment(b.start_date).format('ll')} \u2013 {moment(b.end_date).format('ll')} \u00b7 {b.slots} slot{b.slots > 1 ? 's' : ''} \u00b7 ${b.total_price.toFixed(2)}</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => respond(b.id, 'approve')} className="bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-green-700">Approve</button>
+                      <button onClick={() => respond(b.id, 'decline')} className="border border-red-300 text-red-600 text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-red-50">Decline & refund</button>
+                    </div>
+                  </div>
+                ))}
               </div>
             )}
 

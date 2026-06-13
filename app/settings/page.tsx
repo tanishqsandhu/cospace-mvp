@@ -12,6 +12,8 @@ export default function SettingsPage() {
   const [user, setUser] = useState<any>(null)
   const [profile, setProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [payout, setPayout] = useState({ payout_method: '', payout_account: '', payout_name: '' })
+  const [savingPayout, setSavingPayout] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -19,6 +21,7 @@ export default function SettingsPage() {
       setUser(data.user)
       const { data: p } = await supabase.from('profiles').select('*').eq('id', data.user.id).single()
       setProfile(p)
+      setPayout({ payout_method: p?.payout_method || '', payout_account: p?.payout_account || '', payout_name: p?.payout_name || '' })
       setLoading(false)
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -31,6 +34,16 @@ export default function SettingsPage() {
     if (error) { toast.error('Could not update'); return }
     setProfile({ ...profile, is_host: next })
     toast.success(next ? 'You can now host spaces' : 'Hosting disabled')
+  }
+
+  const savePayout = async () => {
+    if (!profile) return
+    setSavingPayout(true)
+    const { error } = await supabase.from('profiles').update(payout).eq('id', profile.id)
+    setSavingPayout(false)
+    if (error) { toast.error('Could not save payout details'); return }
+    setProfile({ ...profile, ...payout })
+    toast.success('Payout details saved')
   }
 
   const signOut = async () => { await supabase.auth.signOut(); router.push('/'); router.refresh() }
@@ -63,6 +76,35 @@ export default function SettingsPage() {
               className={`relative w-11 h-6 rounded-full transition ${profile?.is_host ? 'bg-indigo-600' : 'bg-gray-300'}`}>
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full transition ${profile?.is_host ? 'translate-x-5' : ''}`} />
             </button>
+          </div>
+          <div className="p-5">
+            <p className="font-medium text-sm mb-3">Payout details</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Method</label>
+                <select value={payout.payout_method} onChange={e => setPayout({ ...payout, payout_method: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                  <option value="">Select method</option>
+                  <option value="bank">Bank transfer</option>
+                  <option value="paypal">PayPal</option>
+                  <option value="stripe">Stripe</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Account (IBAN / email / account id)</label>
+                <input value={payout.payout_account} onChange={e => setPayout({ ...payout, payout_account: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-400 mb-1">Account holder name</label>
+                <input value={payout.payout_name} onChange={e => setPayout({ ...payout, payout_name: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" />
+              </div>
+              <button onClick={savePayout} disabled={savingPayout}
+                className="bg-indigo-600 text-white text-sm font-medium px-5 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                {savingPayout ? 'Saving' : 'Save payout details'}
+              </button>
+            </div>
           </div>
           <div className="p-5">
             <button onClick={signOut} className="text-red-600 text-sm font-medium hover:underline">Sign out</button>

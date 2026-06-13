@@ -82,8 +82,9 @@ export default function RoomsPage() {
       })
       const json = await res.json()
       if (json?.unconfigured) {
-        await supabase.from('bookings').update({ status: 'confirmed' }).eq('id', booking.id)
-        toast.success('Booking confirmed!')
+        const auto = listing.auto_approve ?? true
+        await supabase.from('bookings').update({ status: auto ? 'confirmed' : 'awaiting_approval', paid: true }).eq('id', booking.id)
+        toast.success(auto ? 'Booking confirmed!' : 'Request sent \u2014 awaiting host approval')
         router.push('/bookings')
         return
       }

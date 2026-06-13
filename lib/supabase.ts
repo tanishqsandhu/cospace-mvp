@@ -21,6 +21,9 @@ export interface Profile {
   zip_code: string | null
   is_host: boolean
   is_admin: boolean
+  payout_method: string | null
+  payout_account: string | null
+  payout_name: string | null
   is_email_verified: boolean
   profile_completed: boolean
   created_at: string
@@ -115,7 +118,8 @@ export interface Booking {
   per_day_price: number
   total_days: number
   total_price: number
-  status: 'confirmed' | 'cancelled' | 'completed'
+  status: 'pending' | 'awaiting_approval' | 'confirmed' | 'cancelled' | 'completed'
+  responded_at: string | null
   stripe_payment_intent_id: string | null
   stripe_session_id: string | null
   paid: boolean

@@ -7,14 +7,20 @@ import { useRouter } from 'next/navigation'
 export default function Header() {
   const [user, setUser] = useState<any>(null)
   const [open, setOpen] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
   const supabase = createClient()
   const router = useRouter()
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data }) => setUser(data.user))
+    const loadAdmin = async (u: any) => {
+      if (!u) { setIsAdmin(false); return }
+      const { data } = await supabase.from('profiles').select('is_admin').eq('id', u.id).single()
+      setIsAdmin(!!data?.is_admin)
+    }
+    supabase.auth.getUser().then(({ data }) => { setUser(data.user); loadAdmin(data.user) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
-      setUser(session?.user ?? null)
+      setUser(session?.user ?? null); loadAdmin(session?.user ?? null)
     })
     return () => subscription.unsubscribe()
   }, [])
@@ -78,6 +84,10 @@ export default function Header() {
                       <Link key={it.href} href={it.href} onClick={() => setOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{it.label}</Link>
                     ))}
+                    {isAdmin && (
+                      <Link href="/admin" onClick={() => setOpen(false)}
+                        className="block px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">Admin dashboard</Link>
+                    )}
                     <Link href="/profile/place" onClick={() => setOpen(false)}
                       className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:hidden">List your space</Link>
                     <div className="border-t my-1" />

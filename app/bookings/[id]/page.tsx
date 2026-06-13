@@ -71,7 +71,7 @@ export default function BookingDetailPage() {
   const fetchBooking = async () => {
     const { data } = await supabase
       .from('bookings')
-      .select('*, listings(*, listing_images(url, position))')
+      .select('*, listings(*, buildings(name), listing_images(url, position))')
       .eq('id', bookingId)
       .single()
     if (!data) { setLoading(false); return }
@@ -161,7 +161,7 @@ export default function BookingDetailPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <Link href={`/rooms?id=${booking.listing_id}`} className="text-xl font-bold hover:underline">
-                      {listing.description || 'Workspace'}
+                      {listing.unit_name || listing.buildings?.name || listing.description || 'Workspace'}
                     </Link>
                     <p className="text-sm text-gray-500 mt-1">
                       {[listing.address, listing.city, listing.country].filter(Boolean).join(', ')}

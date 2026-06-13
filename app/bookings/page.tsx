@@ -45,7 +45,7 @@ export default function BookingsPage() {
   const fetchBookings = async (userId: string) => {
     const { data } = await supabase
       .from('bookings')
-      .select('*, listings(description, city, country, listing_images(url, position))')
+      .select('*, listings(unit_name, description, city, country, buildings(name), listing_images(url, position))')
       .eq('guest_id', userId)
       .order('created_at', { ascending: false })
     setBookings(data || [])
@@ -93,7 +93,7 @@ export default function BookingsPage() {
                   <div className="flex-1">
                     <div className="flex items-start justify-between">
                       <div>
-                        <p className="font-semibold">{(b.listings as any)?.description || 'Workspace'}</p>
+                        <p className="font-semibold">{(b.listings as any)?.unit_name || (b.listings as any)?.buildings?.name || (b.listings as any)?.description || 'Workspace'}</p>
                         <p className="text-sm text-gray-500">{[(b.listings as any)?.city, (b.listings as any)?.country].filter(Boolean).join(', ')}</p>
                       </div>
                       <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusColor(b.status)}`}>{b.status}</span>

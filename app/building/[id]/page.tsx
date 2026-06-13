@@ -74,16 +74,21 @@ export default function BuildingPage() {
     const c = coordsForBuilding(building)
     if (!c) return
     let cancelled = false
-    loadLeaflet().then((L) => {
-      if (cancelled || !L || !mapElRef.current) return
-      if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-      const map = L.map(mapElRef.current, { scrollWheelZoom: false }).setView(c, 14)
+    let tries = 0
+    const init = async () => {
+      const L = await loadLeaflet()
+      if (cancelled || !L) return
+      const el = mapElRef.current
+      if (!el) { if (tries++ < 30) setTimeout(init, 100); return }
+      if (mapRef.current || (el as any)._leaflet_id) return
+      const map = L.map(el, { scrollWheelZoom: false }).setView(c, 14)
       mapRef.current = map
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
       const icon = L.divIcon({ className: '', html: '<div style="width:18px;height:18px;background:#4f46e5;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
       L.marker(c, { icon }).addTo(map)
-      setTimeout(() => { try { map.invalidateSize() } catch {} }, 150)
-    })
+      setTimeout(() => { try { map.invalidateSize() } catch {} }, 200)
+    }
+    init()
     return () => { cancelled = true; if (mapRef.current) { mapRef.current.remove(); mapRef.current = null } }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [building])

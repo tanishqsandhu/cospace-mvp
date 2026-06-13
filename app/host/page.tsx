@@ -39,7 +39,7 @@ export default function HostPage() {
   const fetchBookings = async (listingId: string) => {
     const { data } = await supabase
       .from('bookings')
-      .select('*, profiles(*)')
+      .select('*, profiles!guest_id(*)')
       .eq('listing_id', listingId)
       .order('created_at', { ascending: false })
     setBookings(data || [])

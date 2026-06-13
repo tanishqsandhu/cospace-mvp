@@ -18,7 +18,7 @@ export async function GET() {
   const admin = createAdminSupabase()
   const [listings, bookings, profiles, incidents] = await Promise.all([
     admin.from('listings').select('*, buildings(*), profiles(*)').order('created_at', { ascending: false }),
-    admin.from('bookings').select('*, profiles(*), listings(unit_name, description)').order('created_at', { ascending: false }),
+    admin.from('bookings').select('*, profiles!guest_id(*), listings(unit_name, description)').order('created_at', { ascending: false }),
     admin.from('profiles').select('*').order('created_at', { ascending: false }),
     admin.from('incidents').select('*, profiles(*), bookings(host_id, listing_id)').order('created_at', { ascending: false }),
   ])

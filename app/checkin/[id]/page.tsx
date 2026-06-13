@@ -64,10 +64,10 @@ export default function CheckinPage() {
       <div className="max-w-md mx-auto px-4 py-10">
         <div className="bg-white rounded-2xl shadow p-6 text-center">
           <h1 className="text-xl font-bold mb-1">Check-in</h1>
-          <p className="text-sm text-gray-500 mb-4">{listing.unit_name || listing.description || 'Workspace'}{listing.city ? ` \u00b7 ${listing.city}` : ''}</p>
+          <p className="text-sm text-gray-500 mb-4">{listing.unit_name || listing.description || 'Workspace'}{listing.city ? ` · ${listing.city}` : ''}</p>
           <div className="text-sm text-left border rounded-xl divide-y mb-5">
             <div className="flex justify-between px-4 py-2"><span className="text-gray-400">Guest</span><span className="font-medium">{nameOf(guest)}</span></div>
-            <div className="flex justify-between px-4 py-2"><span className="text-gray-400">Dates</span><span className="font-medium">{moment(booking.start_date).format('ll')} \u2013 {moment(booking.end_date).format('ll')}</span></div>
+            <div className="flex justify-between px-4 py-2"><span className="text-gray-400">Dates</span><span className="font-medium">{moment(booking.start_date).format('ll')} – {moment(booking.end_date).format('ll')}</span></div>
             <div className="flex justify-between px-4 py-2"><span className="text-gray-400">Status</span><span className="font-medium capitalize">{booking.status}</span></div>
           </div>
           {booking.checked_in_at ? (

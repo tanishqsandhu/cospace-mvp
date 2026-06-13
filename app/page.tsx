@@ -175,7 +175,7 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
       </div>
       <div className="p-4">
         <p className="font-semibold text-gray-900 truncate">{l.unit_name || l.description || 'Workspace'}</p>
-        <p className="text-sm text-gray-500 mt-1">{[l.buildings?.name, l.city, l.country].filter(Boolean).join(' \u00b7 ')}</p>
+        <p className="text-sm text-gray-500 mt-1">{[l.buildings?.name, l.city, l.country].filter(Boolean).join(' · ')}</p>
         <p className="text-indigo-700 font-bold mt-2">${l.price}<span className="text-gray-400 font-normal text-sm"> / day</span></p>
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
@@ -198,7 +198,7 @@ function BuildingCard({ item, cover, highlighted, refCb, onEnter, onLeave }: {
   onLeave?: () => void
 }) {
   const { building, units, minPrice, maxPrice } = item
-  const priceLabel = minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}\u2013$${maxPrice}`
+  const priceLabel = minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}–$${maxPrice}`
   const types = Array.from(new Set(units.map((u) => TYPE_LABELS[u.type] || u.type))).slice(0, 3)
   return (
     <Link
@@ -221,7 +221,7 @@ function BuildingCard({ item, cover, highlighted, refCb, onEnter, onLeave }: {
       </div>
       <div className="p-4">
         <p className="font-semibold text-gray-900 truncate">{building?.name || 'Building'}</p>
-        <p className="text-sm text-gray-500 mt-1">{[building?.city || units[0].city, building?.country || units[0].country].filter(Boolean).join(' \u00b7 ')}</p>
+        <p className="text-sm text-gray-500 mt-1">{[building?.city || units[0].city, building?.country || units[0].country].filter(Boolean).join(' · ')}</p>
         <p className="text-indigo-700 font-bold mt-2">{priceLabel}<span className="text-gray-400 font-normal text-sm"> / day</span></p>
         {types.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
@@ -461,19 +461,19 @@ export default function HomePage() {
               (uc ? `<img src="${uc}" alt="" />` : `<div class="cs-brow-noimg"></div>`) +
               `<div class="cs-brow-body">` +
               `<div class="cs-brow-title">${esc(u.unit_name || u.description || 'Workspace')}</div>` +
-              `<div class="cs-brow-meta">${esc(TYPE_LABELS[u.type] || u.type)} \u00b7 $${u.price}/day</div>` +
+              `<div class="cs-brow-meta">${esc(TYPE_LABELS[u.type] || u.type)} · $${u.price}/day</div>` +
               `</div></a>`
           }).join('')
           const rated = it.units.filter((u) => (u.avg_rating || 0) > 0)
           const bAvg = rated.length ? rated.reduce((acc, u) => acc + (u.avg_rating || 0), 0) / rated.length : 0
           const bRev = it.units.reduce((acc, u) => acc + (u.review_count || 0), 0)
-          const ratingStr = bAvg > 0 ? ` \u00b7 \u2605 ${bAvg.toFixed(1)} (${bRev})` : ''
+          const ratingStr = bAvg > 0 ? ` · ★ ${bAvg.toFixed(1)} (${bRev})` : ''
           popHtml =
             `<div class="cs-bpop">` +
             `<div class="cs-bpop-head"><div class="cs-bpop-title">${esc(title)}</div>` +
-            `<div class="cs-bpop-sub">${esc(loc.filter(Boolean).join(', '))} \u00b7 ${it.units.length} unit${it.units.length > 1 ? 's' : ''}${ratingStr}</div></div>` +
+            `<div class="cs-bpop-sub">${esc(loc.filter(Boolean).join(', '))} · ${it.units.length} unit${it.units.length > 1 ? 's' : ''}${ratingStr}</div></div>` +
             `<div class="cs-bpop-list">${rows}</div>` +
-            `<a class="cs-bpop-foot" href="${href}">View building \u2192</a>` +
+            `<a class="cs-bpop-foot" href="${href}">View building →</a>` +
             `</div>`
           popOpts = { className: 'cs-popup cs-bpopup', minWidth: 250, maxWidth: 270, offset: [0, -10] }
         } else {
@@ -571,7 +571,7 @@ export default function HomePage() {
     <>
       <h2 className="text-xl font-bold">{activeQuery ? `Results for "${activeQuery}"` : 'All spaces'}</h2>
       <p className="text-sm text-gray-500 mb-5">
-        {displayedItems.length} result{displayedItems.length === 1 ? '' : 's'}{buildingCount > 0 ? ` \u00b7 ${buildingCount} building${buildingCount === 1 ? '' : 's'}` : ''}
+        {displayedItems.length} result{displayedItems.length === 1 ? '' : 's'}{buildingCount > 0 ? ` · ${buildingCount} building${buildingCount === 1 ? '' : 's'}` : ''}
       </p>
     </>
   )

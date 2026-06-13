@@ -257,7 +257,7 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-500">{r.host?.payout_account || '—'}</td>
                     <td className="px-4 py-3">{r.count}</td>
                     <td className="px-4 py-3 font-semibold">{fmt(r.net)}</td>
-                    <td className="px-4 py-3">{openIncidentsByHost[r.hostId] ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{openIncidentsByHost[r.hostId]} open</span> : <span className="text-gray-300">\u2014</span>}</td>
+                    <td className="px-4 py-3">{openIncidentsByHost[r.hostId] ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{openIncidentsByHost[r.hostId]} open</span> : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => action({ action: 'mark_host_paid', hostId: r.hostId }, 'Marked as paid')}
                         className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">

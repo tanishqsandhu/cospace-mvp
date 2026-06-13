@@ -219,7 +219,7 @@ export default function BookingDetailPage() {
                         <span className={`text-[10px] px-2 py-0.5 rounded-full ${it.status === 'resolved' ? 'bg-green-100 text-green-700' : it.status === 'reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{it.status}</span>
                       </div>
                       {it.description && <p className="text-xs text-gray-500 mt-1">{it.description}</p>}
-                      <p className="text-[10px] text-gray-400 mt-1">{moment(it.created_at).format('lll')} \u00b7 {it.severity}</p>
+                      <p className="text-[10px] text-gray-400 mt-1">{moment(it.created_at).format('lll')} · {it.severity}</p>
                     </div>
                   ))}
                 </div>

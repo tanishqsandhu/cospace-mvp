@@ -117,8 +117,8 @@ export default function BuildingPage() {
           <p className="text-gray-500 mt-1">{[building.address, building.city, building.state, building.country].filter(Boolean).join(', ')}</p>
           <p className="text-sm text-gray-500 mt-1">
             {units.length} bookable space{units.length === 1 ? '' : 's'}
-            {prices.length ? ` \u00b7 ${minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}\u2013$${maxPrice}`} / day` : ''}
-            {avgRating > 0 ? ` \u00b7 \u2b50 ${avgRating.toFixed(1)} (${reviewCount} review${reviewCount === 1 ? '' : 's'})` : ''}
+            {prices.length ? ` · ${minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}–$${maxPrice}`} / day` : ''}
+            {avgRating > 0 ? ` · ⭐ ${avgRating.toFixed(1)} (${reviewCount} review${reviewCount === 1 ? '' : 's'})` : ''}
           </p>
         </div>
 

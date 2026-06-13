@@ -170,7 +170,7 @@ export default function HostPage() {
                   <div key={b.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
                     <div>
                       <p className="font-medium text-sm">{(b.profiles as any)?.first_name} {(b.profiles as any)?.last_name}</p>
-                      <p className="text-xs text-gray-400">{moment(b.start_date).format('ll')} \u2013 {moment(b.end_date).format('ll')} \u00b7 {b.slots} slot{b.slots > 1 ? 's' : ''} \u00b7 ${b.total_price.toFixed(2)}</p>
+                      <p className="text-xs text-gray-400">{moment(b.start_date).format('ll')} – {moment(b.end_date).format('ll')} · {b.slots} slot{b.slots > 1 ? 's' : ''} · ${b.total_price.toFixed(2)}</p>
                     </div>
                     <div className="flex gap-2">
                       <button onClick={() => respond(b.id, 'approve')} className="bg-green-600 text-white text-xs font-medium px-3 py-1.5 rounded-lg hover:bg-green-700">Approve</button>

@@ -316,14 +316,23 @@ export default function HomePage() {
     if (v.trim().length < 3) { setSuggests([]); setShowSug(false); return }
     sugTimer.current = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(v)}`)
-        const arr = await res.json()
-        if (Array.isArray(arr)) {
-          setSuggests(arr.map((a: any) => ({ label: a.display_name as string, lat: parseFloat(a.lat), lng: parseFloat(a.lon) })))
-          setShowSug(true)
+        const res = await fetch(`https://photon.komoot.io/api/?limit=6&q=${encodeURIComponent(v)}`)
+        const json = await res.json()
+        const feats = Array.isArray(json?.features) ? json.features : []
+        const seen = new Set<string>()
+        const out: { label: string; lat: number; lng: number }[] = []
+        for (const f of feats) {
+          const pr = f.properties || {}
+          const coords = f.geometry?.coordinates || []
+          const label = [pr.name, pr.city && pr.city !== pr.name ? pr.city : null, pr.state, pr.country].filter(Boolean).join(', ')
+          if (!label || seen.has(label) || coords.length < 2) continue
+          seen.add(label)
+          out.push({ label, lat: coords[1], lng: coords[0] })
         }
+        setSuggests(out)
+        setShowSug(true)
       } catch {}
-    }, 300)
+    }, 250)
   }
 
   const pickSuggest = (sug: { label: string; lat: number; lng: number }) => {

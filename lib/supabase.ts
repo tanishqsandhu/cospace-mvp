@@ -24,6 +24,8 @@ export interface Profile {
   payout_method: string | null
   payout_account: string | null
   payout_name: string | null
+  stripe_account_id: string | null
+  payouts_enabled: boolean
   is_email_verified: boolean
   profile_completed: boolean
   created_at: string
@@ -124,6 +126,9 @@ export interface Booking {
   stripe_payment_intent_id: string | null
   stripe_session_id: string | null
   paid: boolean
+  host_paid_out: boolean
+  paid_out_at: string | null
+  stripe_transfer_id: string | null
   created_at: string
   updated_at: string
   listings?: Listing

@@ -48,6 +48,18 @@ export default function AdminPage() {
     await load()
   }
 
+  const payoutHost = async (hostId: string) => {
+    const res = await fetch('/api/admin/action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'mark_host_paid', hostId }),
+    })
+    const j = await res.json()
+    if (!res.ok) { toast.error(j?.error || 'Payout failed'); return }
+    toast.success(j.count ? `Paid out $${Number(j.transferred).toFixed(2)} across ${j.count} booking(s)` : 'Nothing to pay out')
+    if (j.partialErrors) toast.error(`Some failed: ${j.partialErrors.join('; ')}`)
+    await load()
+  }
+
   const profileById = (id: string) => profiles.find(p => p.id === id)
   const openIncidentsByHost: Record<string, number> = (() => {
     const m: Record<string, number> = {}
@@ -245,23 +257,22 @@ export default function AdminPage() {
             </div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Method</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Bookings</th><th className="px-4 py-3 text-left">Owed</th><th className="px-4 py-3 text-left">Issues</th><th className="px-4 py-3"></th></tr>
+                <tr><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Payout account</th><th className="px-4 py-3 text-left">Bookings</th><th className="px-4 py-3 text-left">Owed</th><th className="px-4 py-3 text-left">Issues</th><th className="px-4 py-3"></th></tr>
               </thead>
               <tbody className="divide-y">
                 {payoutRows.length === 0 ? (
-                  <tr><td colSpan={7} className="text-center py-10 text-gray-400">Nothing owed right now</td></tr>
+                  <tr><td colSpan={6} className="text-center py-10 text-gray-400">Nothing owed right now</td></tr>
                 ) : payoutRows.map(r => (
                   <tr key={r.hostId} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{name(r.host)}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.host?.payout_method || '—'}</td>
-                    <td className="px-4 py-3 text-gray-500">{r.host?.payout_account || '—'}</td>
+                    <td className="px-4 py-3">{r.host?.payouts_enabled ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Connected</span> : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Not set up</span>}</td>
                     <td className="px-4 py-3">{r.count}</td>
                     <td className="px-4 py-3 font-semibold">{fmt(r.net)}</td>
                     <td className="px-4 py-3">{openIncidentsByHost[r.hostId] ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{openIncidentsByHost[r.hostId]} open</span> : <span className="text-gray-300">—</span>}</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => action({ action: 'mark_host_paid', hostId: r.hostId }, 'Marked as paid')}
-                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">
-                        Mark paid
+                      <button onClick={() => payoutHost(r.hostId)} disabled={!r.host?.payouts_enabled}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed">
+                        Pay out
                       </button>
                     </td>
                   </tr>

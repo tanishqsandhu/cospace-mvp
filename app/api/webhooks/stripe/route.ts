@@ -62,5 +62,13 @@ export async function POST(req: Request) {
     }
   }
 
+
+  if (event.type === 'account.updated') {
+    const account = event.data.object as Stripe.Account
+    const enabled = !!account.payouts_enabled && !!account.charges_enabled
+    const admin = createAdminSupabase()
+    await admin.from('profiles').update({ payouts_enabled: enabled }).eq('stripe_account_id', account.id)
+  }
+
   return NextResponse.json({ received: true })
 }

@@ -16,6 +16,8 @@ export default function HostPage() {
   const [selectedListing, setSelectedListing] = useState<string | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
+  const [payout, setPayout] = useState<{ configured: boolean; onboarded: boolean; payouts_enabled: boolean } | null>(null)
+  const [payoutBusy, setPayoutBusy] = useState(false)
   const supabase = createClient()
   const router = useRouter()
 
@@ -29,6 +31,7 @@ export default function HostPage() {
   const fetchHostData = async (userId: string) => {
     const { data: ls } = await supabase.from('listings').select('*').eq('host_id', userId)
     setListings(ls || [])
+    fetch('/api/connect/status').then(r => r.json()).then(setPayout).catch(() => {})
     if (ls?.length) {
       setSelectedListing(ls[0].id)
       fetchBookings(ls[0].id)
@@ -54,6 +57,20 @@ export default function HostPage() {
     if (!res.ok) { toast.error(j?.error || 'Action failed'); return }
     toast.success(action === 'approve' ? 'Booking approved' : 'Declined & refunded')
     if (selectedListing) fetchBookings(selectedListing)
+  }
+
+  const setupPayouts = async () => {
+    setPayoutBusy(true)
+    try {
+      const res = await fetch('/api/connect/onboard', { method: 'POST' })
+      const j = await res.json()
+      if (j?.url) { window.location.href = j.url; return }
+      toast.error(j?.error || 'Could not start payout setup')
+    } catch {
+      toast.error('Could not start payout setup')
+    } finally {
+      setPayoutBusy(false)
+    }
   }
 
 
@@ -189,6 +206,23 @@ export default function HostPage() {
 
             {tab === 'earnings' && (
               <div className="bg-white rounded-xl shadow p-6">
+                {payout && payout.payouts_enabled ? (
+                  <div className="mb-6 flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                    <span className="font-semibold">Payouts active</span>
+                    <span className="text-green-600">Your earnings are sent to your connected bank account.</span>
+                  </div>
+                ) : (
+                  <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                    <div className="text-sm">
+                      <p className="font-semibold text-amber-800">Set up payouts to get paid</p>
+                      <p className="text-amber-700">Connect a bank account so we can send your earnings (net of the platform fee).</p>
+                    </div>
+                    <button onClick={setupPayouts} disabled={payoutBusy}
+                      className="shrink-0 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 disabled:opacity-60 text-sm font-medium">
+                      {payoutBusy ? 'Opening...' : (payout && payout.onboarded ? 'Finish payout setup' : 'Set up payouts')}
+                    </button>
+                  </div>
+                )}
                 <div className="flex justify-between items-center mb-6 border-b pb-4">
                   <span className="text-lg font-semibold">Total earnings <span className="text-gray-400 font-normal text-sm">(net of fee)</span></span>
                   <span className="text-2xl font-bold text-indigo-700">${totalEarnings.toFixed(2)}</span>

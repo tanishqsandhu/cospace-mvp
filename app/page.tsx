@@ -251,6 +251,9 @@ export default function HomePage() {
   const [geoVersion, setGeoVersion] = useState(0)
   const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null)
   const [areaBounds, setAreaBounds] = useState<[number, number, number, number] | null>(null)
+  const [suggests, setSuggests] = useState<{ label: string; lat: number; lng: number }[]>([])
+  const [showSug, setShowSug] = useState(false)
+  const sugTimer = useRef<any>(null)
 
   const supabase = createClient()
 
@@ -305,6 +308,33 @@ export default function HomePage() {
     if (!listings.length) fetchListings('')
     if (search.trim()) geocode(search).then((c) => setSearchCenter(c))
     else setSearchCenter(null)
+  }
+
+  const onSearchChange = (v: string) => {
+    setSearch(v)
+    if (sugTimer.current) clearTimeout(sugTimer.current)
+    if (v.trim().length < 3) { setSuggests([]); setShowSug(false); return }
+    sugTimer.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(v)}`)
+        const arr = await res.json()
+        if (Array.isArray(arr)) {
+          setSuggests(arr.map((a: any) => ({ label: a.display_name as string, lat: parseFloat(a.lat), lng: parseFloat(a.lon) })))
+          setShowSug(true)
+        }
+      } catch {}
+    }, 300)
+  }
+
+  const pickSuggest = (sug: { label: string; lat: number; lng: number }) => {
+    setSearch(sug.label)
+    setSuggests([]); setShowSug(false)
+    setActiveQuery(sug.label)
+    setHasSearched(true)
+    setAreaBounds(null)
+    if (!listings.length) fetchListings('')
+    geoCache.set(sug.label.trim().toLowerCase(), [sug.lat, sug.lng])
+    setSearchCenter([sug.lat, sug.lng])
   }
 
   const filtered = useMemo(() => {
@@ -579,13 +609,29 @@ export default function HomePage() {
           <h1 className="text-4xl font-extrabold mb-3">Find your perfect workspace</h1>
           <p className="text-indigo-200 mb-6">Book desks, meeting rooms, and private offices by the hour, day, or month.</p>
           <form onSubmit={handleSearch} className="flex gap-2 max-w-xl mx-auto">
-            <input
-              type="text"
-              placeholder="Search by city, country, or keyword..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 rounded-lg px-4 py-3 text-gray-900 focus:outline-none"
-            />
+            <div className="relative flex-1">
+              <input
+                type="text"
+                placeholder="Search a city or address..."
+                value={search}
+                onChange={(e) => onSearchChange(e.target.value)}
+                onFocus={() => { if (suggests.length) setShowSug(true) }}
+                onBlur={() => setTimeout(() => setShowSug(false), 150)}
+                className="w-full rounded-lg px-4 py-3 text-gray-900 focus:outline-none"
+              />
+              {showSug && suggests.length > 0 && (
+                <ul className="absolute left-0 right-0 top-full mt-1 bg-white rounded-lg shadow-xl border border-gray-100 text-left z-[700] max-h-72 overflow-y-auto">
+                  {suggests.map((sug, i) => (
+                    <li key={i}>
+                      <button type="button" onMouseDown={(e) => { e.preventDefault(); pickSuggest(sug) }}
+                        className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-indigo-50 truncate">
+                        {sug.label}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <button type="submit" className="bg-white text-indigo-700 font-semibold px-6 py-3 rounded-lg hover:bg-indigo-50">
               Search
             </button>

@@ -93,8 +93,8 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
         )}
       </div>
       <div className="p-4">
-        <p className="font-semibold text-gray-900 truncate">{l.description || 'Workspace'}</p>
-        <p className="text-sm text-gray-500 mt-1">{[l.city, l.country].filter(Boolean).join(', ')}</p>
+        <p className="font-semibold text-gray-900 truncate">{l.unit_name || l.description || 'Workspace'}</p>
+        <p className="text-sm text-gray-500 mt-1">{[l.buildings?.name, l.city, l.country].filter(Boolean).join(' \u00b7 ')}</p>
         <p className="text-indigo-700 font-bold mt-2">${l.price}<span className="text-gray-400 font-normal text-sm"> / day</span></p>
         {tags.length > 0 && (
           <div className="flex flex-wrap gap-1 mt-2">
@@ -156,7 +156,7 @@ export default function HomePage() {
     setLoading(true)
     let q = supabase
       .from('listings')
-      .select('*, listing_images(*), profiles(*)')
+      .select('*, listing_images(*), profiles(*), buildings(*)')
       .eq('is_published', true)
       .order('created_at', { ascending: false })
     if (query) {
@@ -219,7 +219,7 @@ export default function HomePage() {
           `<a class="cs-pop" href="/rooms?id=${l.id}">` +
           (cover ? `<img src="${cover}" alt="" />` : '') +
           `<div class="cs-pop-body">` +
-          `<div class="cs-pop-title">${esc(l.description || 'Workspace')}</div>` +
+          `<div class="cs-pop-title">${esc(l.unit_name || l.description || 'Workspace')}</div>` +
           `<div class="cs-pop-loc">${esc([l.city, l.country].filter(Boolean).join(', '))}</div>` +
           `<div class="cs-pop-price">$${l.price} <span>/ day</span></div>` +
           `</div></a>`

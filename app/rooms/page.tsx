@@ -36,7 +36,7 @@ export default function RoomsPage() {
     setLoading(true)
     const { data } = await supabase
       .from('listings')
-      .select('*, listing_images(*), profiles(*)')
+      .select('*, listing_images(*), profiles(*), buildings(*)')
       .eq('id', listingId!)
       .single()
     if (data) {
@@ -132,8 +132,8 @@ export default function RoomsPage() {
   return (
     <div className="min-h-screen bg-gray-50"><Header />
       <div className="max-w-7xl mx-auto px-4 py-10">
-        <h1 className="text-3xl font-extrabold">{listing.description}</h1>
-        <p className="text-gray-500 mt-1">{[listing.address, listing.city, listing.country].filter(Boolean).join(', ')}</p>
+        <h1 className="text-3xl font-extrabold">{listing.unit_name || listing.buildings?.name || listing.description || 'Workspace'}</h1>
+        <p className="text-gray-500 mt-1">{[listing.buildings?.name, listing.buildings?.address || listing.address, listing.buildings?.city || listing.city, listing.country].filter(Boolean).join(', ')}</p>
 
         {/* Image gallery */}
         {images.length > 0 && (

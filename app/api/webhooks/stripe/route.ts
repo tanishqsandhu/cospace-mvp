@@ -44,5 +44,23 @@ export async function POST(req: Request) {
     }
   }
 
+  if (event.type === 'checkout.session.expired') {
+    const session = event.data.object as Stripe.Checkout.Session
+    const bookingId = session.metadata?.booking_id || session.client_reference_id
+    if (bookingId) {
+      const admin = createAdminSupabase()
+      await admin.from('bookings').update({ status: 'cancelled' }).eq('id', bookingId).eq('paid', false)
+    }
+  }
+
+  if (event.type === 'charge.refunded') {
+    const charge = event.data.object as Stripe.Charge
+    const pi = typeof charge.payment_intent === 'string' ? charge.payment_intent : null
+    if (pi) {
+      const admin = createAdminSupabase()
+      await admin.from('bookings').update({ status: 'cancelled', paid: false }).eq('stripe_payment_intent_id', pi)
+    }
+  }
+
   return NextResponse.json({ received: true })
 }

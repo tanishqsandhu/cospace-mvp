@@ -28,5 +28,11 @@ export async function POST(req: Request) {
     await admin.from('incidents').update({ status: body.status, updated_at: new Date().toISOString() }).eq('id', body.incidentId)
     return NextResponse.json({ ok: true })
   }
+  if (body.action === 'set_user_flag') {
+    const field = body.field === 'is_admin' ? 'is_admin' : body.field === 'is_host' ? 'is_host' : null
+    if (! field) return NextResponse.json({ error: 'Bad field' }, { status: 400 })
+    await admin.from('profiles').update({ [field]: !!body.value }).eq('id', body.userId)
+    return NextResponse.json({ ok: true })
+  }
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }

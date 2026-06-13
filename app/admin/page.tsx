@@ -188,7 +188,7 @@ export default function AdminPage() {
           <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Admin</th><th className="px-4 py-3 text-left">Joined</th></tr>
+                <tr><th className="px-4 py-3 text-left">Name</th><th className="px-4 py-3 text-left">Email</th><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Admin</th><th className="px-4 py-3 text-left">Joined</th><th className="px-4 py-3"></th></tr>
               </thead>
               <tbody className="divide-y">
                 {profiles.map(p => (
@@ -198,6 +198,10 @@ export default function AdminPage() {
                     <td className="px-4 py-3">{p.is_host ? '✓' : '—'}</td>
                     <td className="px-4 py-3">{p.is_admin ? '✓' : '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{p.created_at ? moment(p.created_at).format('ll') : '—'}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button onClick={() => action({ action: 'set_user_flag', userId: p.id, field: 'is_admin', value: !p.is_admin }, p.is_admin ? 'Admin removed' : 'Admin granted')} className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 mr-1">{p.is_admin ? 'Remove admin' : 'Make admin'}</button>
+                      <button onClick={() => action({ action: 'set_user_flag', userId: p.id, field: 'is_host', value: !p.is_host }, p.is_host ? 'Host removed' : 'Host granted')} className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50">{p.is_host ? 'Remove host' : 'Make host'}</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

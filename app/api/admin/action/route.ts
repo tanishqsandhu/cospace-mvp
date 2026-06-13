@@ -24,5 +24,9 @@ export async function POST(req: Request) {
       .eq('host_id', body.hostId).eq('status', 'confirmed').eq('paid', true).eq('host_paid_out', false)
     return NextResponse.json({ ok: true })
   }
+  if (body.action === 'set_incident_status') {
+    await admin.from('incidents').update({ status: body.status, updated_at: new Date().toISOString() }).eq('id', body.incidentId)
+    return NextResponse.json({ ok: true })
+  }
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
 }

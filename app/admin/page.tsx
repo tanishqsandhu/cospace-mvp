@@ -7,7 +7,7 @@ import moment from 'moment'
 import toast from 'react-hot-toast'
 import Header from '@/components/layout/Header'
 
-type Tab = 'overview' | 'listings' | 'bookings' | 'users' | 'payouts'
+type Tab = 'overview' | 'listings' | 'bookings' | 'users' | 'incidents' | 'payouts'
 
 export default function AdminPage() {
   const supabase = createClient()
@@ -17,6 +17,7 @@ export default function AdminPage() {
   const [listings, setListings] = useState<any[]>([])
   const [bookings, setBookings] = useState<any[]>([])
   const [profiles, setProfiles] = useState<any[]>([])
+  const [incidents, setIncidents] = useState<any[]>([])
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data }) => {
@@ -33,7 +34,7 @@ export default function AdminPage() {
     const res = await fetch('/api/admin/data')
     if (!res.ok) { setAuthState('denied'); return }
     const j = await res.json()
-    setListings(j.listings); setBookings(j.bookings); setProfiles(j.profiles)
+    setListings(j.listings); setBookings(j.bookings); setProfiles(j.profiles); setIncidents(j.incidents || [])
   }
 
   const action = async (payload: any, msg: string) => {
@@ -47,6 +48,11 @@ export default function AdminPage() {
   }
 
   const profileById = (id: string) => profiles.find(p => p.id === id)
+  const openIncidentsByHost: Record<string, number> = (() => {
+    const m: Record<string, number> = {}
+    for (const it of incidents) { if (it.status === 'open') { const h = it.bookings?.host_id; if (h) m[h] = (m[h] || 0) + 1 } }
+    return m
+  })()
 
   // Payouts: confirmed + paid + not yet paid out, grouped by host
   const payoutRows = (() => {
@@ -85,6 +91,7 @@ export default function AdminPage() {
     { key: 'listings', label: `Listings (${listings.length})` },
     { key: 'bookings', label: `Bookings (${bookings.length})` },
     { key: 'users', label: `Users (${profiles.length})` },
+    { key: 'incidents', label: `Incidents (${incidents.filter(i => i.status === 'open').length})` },
     { key: 'payouts', label: 'Payouts' },
   ]
 
@@ -195,6 +202,34 @@ export default function AdminPage() {
           </div>
         )}
 
+        {tab === 'incidents' && (
+          <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
+                <tr><th className="px-4 py-3 text-left">Category</th><th className="px-4 py-3 text-left">Severity</th><th className="px-4 py-3 text-left">Reporter</th><th className="px-4 py-3 text-left">Reported</th><th className="px-4 py-3 text-left">Booking</th><th className="px-4 py-3 text-left">Status</th><th className="px-4 py-3"></th></tr>
+              </thead>
+              <tbody className="divide-y">
+                {incidents.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center py-10 text-gray-400">No incidents reported</td></tr>
+                ) : incidents.map(it => (
+                  <tr key={it.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium capitalize">{it.category}</td>
+                    <td className="px-4 py-3 text-gray-500 capitalize">{it.severity}</td>
+                    <td className="px-4 py-3 text-gray-500">{name(it.profiles)}</td>
+                    <td className="px-4 py-3 text-gray-500">{moment(it.created_at).format('ll')}</td>
+                    <td className="px-4 py-3"><Link href={`/bookings/${it.booking_id}`} className="text-indigo-600 hover:underline">view</Link></td>
+                    <td className="px-4 py-3"><span className={`px-2 py-1 rounded-full text-xs ${it.status === 'resolved' ? 'bg-green-100 text-green-700' : it.status === 'reviewed' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>{it.status}</span></td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {it.status !== 'reviewed' && <button onClick={() => action({ action: 'set_incident_status', incidentId: it.id, status: 'reviewed' }, 'Marked reviewed')} className="text-xs px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 mr-1">Reviewed</button>}
+                      {it.status !== 'resolved' && <button onClick={() => action({ action: 'set_incident_status', incidentId: it.id, status: 'resolved' }, 'Marked resolved')} className="text-xs px-2 py-1 rounded bg-green-600 text-white hover:bg-green-700">Resolve</button>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
         {tab === 'payouts' && (
           <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
             <div className="flex justify-between items-center px-4 py-3 border-b">
@@ -203,11 +238,11 @@ export default function AdminPage() {
             </div>
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase">
-                <tr><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Method</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Bookings</th><th className="px-4 py-3 text-left">Owed</th><th className="px-4 py-3"></th></tr>
+                <tr><th className="px-4 py-3 text-left">Host</th><th className="px-4 py-3 text-left">Method</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Bookings</th><th className="px-4 py-3 text-left">Owed</th><th className="px-4 py-3 text-left">Issues</th><th className="px-4 py-3"></th></tr>
               </thead>
               <tbody className="divide-y">
                 {payoutRows.length === 0 ? (
-                  <tr><td colSpan={6} className="text-center py-10 text-gray-400">Nothing owed right now</td></tr>
+                  <tr><td colSpan={7} className="text-center py-10 text-gray-400">Nothing owed right now</td></tr>
                 ) : payoutRows.map(r => (
                   <tr key={r.hostId} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-medium">{name(r.host)}</td>
@@ -215,6 +250,7 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-500">{r.host?.payout_account || '—'}</td>
                     <td className="px-4 py-3">{r.count}</td>
                     <td className="px-4 py-3 font-semibold">{fmt(r.amount)}</td>
+                    <td className="px-4 py-3">{openIncidentsByHost[r.hostId] ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{openIncidentsByHost[r.hostId]} open</span> : <span className="text-gray-300">\u2014</span>}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => action({ action: 'mark_host_paid', hostId: r.hostId }, 'Marked as paid')}
                         className="text-xs font-medium px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700">

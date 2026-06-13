@@ -16,14 +16,16 @@ export async function GET() {
   const user = await requireAdmin()
   if (!user) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   const admin = createAdminSupabase()
-  const [listings, bookings, profiles] = await Promise.all([
+  const [listings, bookings, profiles, incidents] = await Promise.all([
     admin.from('listings').select('*, buildings(*), profiles(*)').order('created_at', { ascending: false }),
     admin.from('bookings').select('*, profiles(*), listings(unit_name, description)').order('created_at', { ascending: false }),
     admin.from('profiles').select('*').order('created_at', { ascending: false }),
+    admin.from('incidents').select('*, profiles(*), bookings(host_id, listing_id)').order('created_at', { ascending: false }),
   ])
   return NextResponse.json({
     listings: listings.data || [],
     bookings: bookings.data || [],
     profiles: profiles.data || [],
+    incidents: incidents.data || [],
   })
 }

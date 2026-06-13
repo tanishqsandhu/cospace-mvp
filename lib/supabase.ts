@@ -139,3 +139,17 @@ export interface Review {
   created_at: string
   profiles?: Profile
 }
+
+export interface Incident {
+  id: string
+  booking_id: string
+  reporter_id: string | null
+  category: string
+  severity: string
+  description: string | null
+  status: 'open' | 'reviewed' | 'resolved'
+  created_at: string
+  updated_at: string
+  profiles?: Profile
+  bookings?: Booking
+}

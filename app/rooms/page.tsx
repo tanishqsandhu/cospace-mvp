@@ -21,6 +21,7 @@ export default function RoomsPage() {
   const [rating, setRating] = useState(0)
   const [review, setReview] = useState('')
   const [slots, setSlots] = useState(1)
+  const [canReview, setCanReview] = useState(false)
   const [lightbox, setLightbox] = useState<number | null>(null)
   const [dateValue, setDateValue] = useState({
     startDate: moment().format('YYYY-MM-DD'),
@@ -31,6 +32,14 @@ export default function RoomsPage() {
     supabase.auth.getUser().then(({ data }) => setUser(data.user))
     if (listingId) fetchListing()
   }, [listingId])
+
+  useEffect(() => {
+    if (!user || !listingId) return
+    supabase.from('bookings').select('id').eq('listing_id', listingId).eq('guest_id', user.id)
+      .in('status', ['confirmed', 'completed']).limit(1)
+      .then(({ data }) => setCanReview(!!(data && data.length)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, listingId])
 
   const fetchListing = async () => {
     setLoading(true)
@@ -62,6 +71,13 @@ export default function RoomsPage() {
       dateValue.startDate, dateValue.endDate, bookSlots,
       listing.price!, listing.per_day_offers || [], listing.holiday_dates || []
     )
+    const blocked = (listing.holiday_dates || []).some((h) => h.startDate <= dateValue.endDate && h.endDate >= dateValue.startDate)
+    if (blocked) { toast.error('Those dates are unavailable for this space.'); return }
+    try {
+      const av = await fetch('/api/availability', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ listingId: listing.id, start: dateValue.startDate, end: dateValue.endDate }) })
+      const aj = await av.json()
+      if (!aj.available) { toast.error('Those dates are already booked. Please choose different dates.'); return }
+    } catch {}
     const { data: booking, error } = await supabase.from('bookings').insert({
       listing_id: listing.id,
       guest_id: user.id,
@@ -97,6 +113,7 @@ export default function RoomsPage() {
 
   const handleReview = async () => {
     if (!user) { toast.error('Please sign in to leave a review'); return }
+    if (!canReview) { toast.error('You can only review a space you have booked.'); return }
     const { error } = await supabase.from('reviews').insert({
       listing_id: listingId!, reviewer_id: user.id, rating, review
     })
@@ -206,7 +223,10 @@ export default function RoomsPage() {
                 </div>
               ))}
 
-              {user && (
+              {user && !canReview && (
+                <p className="text-sm text-gray-400 mt-4">Book this space to leave a review.</p>
+              )}
+              {user && canReview && (
                 <div className="mt-4">
                   <h3 className="font-semibold mb-2">Leave a review</h3>
                   <div className="flex gap-1 mb-2">

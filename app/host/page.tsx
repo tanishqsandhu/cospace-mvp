@@ -7,7 +7,7 @@ import moment from 'moment'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import Header from '@/components/layout/Header'
-import { countDaysExcludingHolidays } from '@/lib/pricing'
+import { countDaysExcludingHolidays, PLATFORM_FEE_RATE } from '@/lib/pricing'
 import toast from 'react-hot-toast'
 
 export default function HostPage() {
@@ -68,7 +68,7 @@ export default function HostPage() {
 
   const totalEarnings = bookings
     .filter(b => b.status !== 'cancelled')
-    .reduce((sum, b) => sum + b.total_price, 0)
+    .reduce((sum, b) => sum + b.total_price * (1 - PLATFORM_FEE_RATE), 0)
 
   const reviews = listing ? [] as any[] : []
 
@@ -100,7 +100,7 @@ export default function HostPage() {
           <div className="grid grid-cols-3 gap-4 mb-8">
             {[
               { label: 'Total bookings', value: bookings.filter(b => b.status !== 'cancelled').length },
-              { label: 'Total earnings', value: `$${totalEarnings.toFixed(0)}` },
+              { label: 'Earnings (net)', value: `$${totalEarnings.toFixed(0)}` },
               { label: 'Avg rating', value: listing.avg_rating > 0 ? `${listing.avg_rating.toFixed(1)} ⭐` : '—' },
             ].map(({ label, value }) => (
               <div key={label} className="bg-white rounded-xl shadow p-4 text-center">
@@ -185,7 +185,7 @@ export default function HostPage() {
             {tab === 'earnings' && (
               <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex justify-between items-center mb-6 border-b pb-4">
-                  <span className="text-lg font-semibold">Total earnings</span>
+                  <span className="text-lg font-semibold">Total earnings <span className="text-gray-400 font-normal text-sm">(net of fee)</span></span>
                   <span className="text-2xl font-bold text-indigo-700">${totalEarnings.toFixed(2)}</span>
                 </div>
                 {bookings.filter(b => b.status !== 'cancelled').map(b => (
@@ -194,7 +194,7 @@ export default function HostPage() {
                       <p className="font-medium">{(b.profiles as any)?.first_name} {(b.profiles as any)?.last_name}</p>
                       <p className="text-gray-400">{moment(b.start_date).format('ll')} – {moment(b.end_date).format('ll')} · {b.slots} slot{b.slots > 1 ? 's' : ''}</p>
                     </div>
-                    <span className="font-semibold">${b.total_price.toFixed(2)}</span>
+                    <span className="font-semibold">${(b.total_price * (1 - PLATFORM_FEE_RATE)).toFixed(2)}</span>
                   </div>
                 ))}
               </div>

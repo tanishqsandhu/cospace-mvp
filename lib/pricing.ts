@@ -76,3 +76,5 @@ export function timeConvert(time: string): string {
   }
   return time
 }
+
+export const PLATFORM_FEE_RATE = 0.10

@@ -6,6 +6,7 @@ import Link from 'next/link'
 import moment from 'moment'
 import toast from 'react-hot-toast'
 import Header from '@/components/layout/Header'
+import { PLATFORM_FEE_RATE } from '@/lib/pricing'
 
 type Tab = 'overview' | 'listings' | 'bookings' | 'users' | 'incidents' | 'payouts'
 
@@ -64,8 +65,8 @@ export default function AdminPage() {
         owed[b.host_id].count += 1
       }
     }
-    return Object.entries(owed).map(([hostId, v]) => ({ hostId, ...v, host: profileById(hostId) }))
-      .sort((a, b) => b.amount - a.amount)
+    return Object.entries(owed).map(([hostId, v]) => ({ hostId, ...v, net: v.amount * (1 - PLATFORM_FEE_RATE), host: profileById(hostId) }))
+      .sort((a, b) => b.net - a.net)
   })()
 
   if (authState === 'loading') return (
@@ -96,7 +97,8 @@ export default function AdminPage() {
   ]
 
   const totalGmv = bookings.filter(b => b.paid).reduce((s, b) => s + (Number(b.total_price) || 0), 0)
-  const owedTotal = payoutRows.reduce((s, r) => s + r.amount, 0)
+  const owedTotal = payoutRows.reduce((s, r) => s + r.net, 0)
+  const platformRevenue = bookings.filter(b => b.status === 'confirmed' && b.paid).reduce((s, b) => s + (Number(b.total_price) || 0) * PLATFORM_FEE_RATE, 0)
 
   return (
     <div className="min-h-screen bg-gray-50"><Header />
@@ -119,6 +121,7 @@ export default function AdminPage() {
               { label: 'Bookings', value: bookings.length },
               { label: 'Users', value: profiles.length },
               { label: 'Gross volume', value: fmt(totalGmv) },
+              { label: `Platform fee (${Math.round(PLATFORM_FEE_RATE * 100)}%)`, value: fmt(platformRevenue) },
               { label: 'Owed to hosts', value: fmt(owedTotal) },
               { label: 'Published', value: listings.filter(l => l.is_published).length },
               { label: 'Awaiting approval', value: bookings.filter(b => b.status === 'awaiting_approval').length },
@@ -233,7 +236,7 @@ export default function AdminPage() {
         {tab === 'payouts' && (
           <div className="bg-white rounded-xl shadow overflow-hidden overflow-x-auto">
             <div className="flex justify-between items-center px-4 py-3 border-b">
-              <span className="font-semibold text-sm">Owed to hosts</span>
+              <span className="font-semibold text-sm">Owed to hosts <span className="text-gray-400 font-normal">(net of {Math.round(PLATFORM_FEE_RATE * 100)}% fee)</span></span>
               <span className="font-bold text-indigo-700">{fmt(owedTotal)}</span>
             </div>
             <table className="w-full text-sm">
@@ -249,7 +252,7 @@ export default function AdminPage() {
                     <td className="px-4 py-3 text-gray-500">{r.host?.payout_method || '—'}</td>
                     <td className="px-4 py-3 text-gray-500">{r.host?.payout_account || '—'}</td>
                     <td className="px-4 py-3">{r.count}</td>
-                    <td className="px-4 py-3 font-semibold">{fmt(r.amount)}</td>
+                    <td className="px-4 py-3 font-semibold">{fmt(r.net)}</td>
                     <td className="px-4 py-3">{openIncidentsByHost[r.hostId] ? <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">{openIncidentsByHost[r.hostId]} open</span> : <span className="text-gray-300">\u2014</span>}</td>
                     <td className="px-4 py-3 text-right">
                       <button onClick={() => action({ action: 'mark_host_paid', hostId: r.hostId }, 'Marked as paid')}

@@ -53,10 +53,14 @@ export default function BookingsPage() {
   }
 
   const handleCancel = async (id: string) => {
-    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id)
-    if (error) { toast.error('Could not cancel'); return }
-    toast.success('Booking cancelled')
-    setBookings(b => b.map(bk => bk.id === id ? { ...bk, status: 'cancelled' } : bk))
+    const res = await fetch('/api/booking-action', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bookingId: id, action: 'cancel' }),
+    })
+    const j = await res.json()
+    if (!res.ok) { toast.error(j?.error || 'Could not cancel'); return }
+    toast.success(j?.refunded ? 'Booking cancelled & refunded' : 'Booking cancelled')
+    setBookings(b => b.map(bk => bk.id === id ? { ...bk, status: 'cancelled', paid: false } : bk))
   }
 
   const statusColor = (status: string) => ({

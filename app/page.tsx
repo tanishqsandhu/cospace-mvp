@@ -33,6 +33,11 @@ const TYPE_LABELS: Record<string, string> = {
   'room': 'Office',
   'shared room': 'Meeting Room',
   'event space': 'Event Space',
+  'private office': 'Private office',
+  'hot desk': 'Hot desk',
+  'meeting room': 'Meeting room',
+  'event space ': 'Event space',
+  'coworking': 'Coworking',
 }
 const AMENITIES: { key: string; label: string }[] = [
   { key: 'wifi', label: 'WiFi' },
@@ -44,6 +49,50 @@ const AMENITIES: { key: string; label: string }[] = [
   { key: 'paid_parking', label: 'Paid parking' },
   { key: 'washer', label: 'Washer' },
 ]
+
+const firstImage = (l: Listing) =>
+  l.listing_images?.slice().sort((a, b) => a.position - b.position)[0]?.url
+const buildingCover = (units: Listing[]) => {
+  for (const u of units) { const c = firstImage(u); if (c) return c }
+  return undefined
+}
+
+// ── Items: group units by building, keep standalone units ─────────────
+type Item =
+  | { kind: 'building'; id: string; building: any; units: Listing[]; minPrice: number; maxPrice: number; rating: number; created: string }
+  | { kind: 'unit'; id: string; unit: Listing }
+
+function buildItems(arr: Listing[], sortBy: string): Item[] {
+  const map = new Map<string, Listing[]>()
+  const standalone: Listing[] = []
+  for (const l of arr) {
+    if (l.building_id) {
+      const a = map.get(l.building_id) || []; a.push(l); map.set(l.building_id, a)
+    } else standalone.push(l)
+  }
+  const items: Item[] = []
+  map.forEach((units, id) => {
+    const prices = units.map((u) => u.price ?? 0)
+    items.push({
+      kind: 'building', id, building: (units[0] as any).buildings, units,
+      minPrice: Math.min(...prices), maxPrice: Math.max(...prices),
+      rating: Math.max(0, ...units.map((u) => u.avg_rating || 0)),
+      created: units[0].created_at,
+    })
+  })
+  for (const u of standalone) items.push({ kind: 'unit', id: u.id, unit: u })
+
+  const price = (it: Item) => it.kind === 'building' ? it.minPrice : (it.unit.price ?? 0)
+  const rating = (it: Item) => it.kind === 'building' ? it.rating : (it.unit.avg_rating || 0)
+  const created = (it: Item) => it.kind === 'building' ? it.created : it.unit.created_at
+  if (sortBy === 'price_asc') items.sort((a, b) => price(a) - price(b))
+  else if (sortBy === 'price_desc') items.sort((a, b) => price(b) - price(a))
+  else if (sortBy === 'rating_desc') items.sort((a, b) => rating(b) - rating(a))
+  else items.sort((a, b) => (created(b) || '').localeCompare(created(a) || ''))
+  return items
+}
+
+const itemCoords = (it: Item) => it.kind === 'building' ? coordsFor(it.units[0]) : coordsFor(it.unit)
 
 // ── Leaflet loader (CDN, client-only) ─────────────────────────────────
 let leafletPromise: Promise<any> | null = null
@@ -100,6 +149,49 @@ function SpaceCard({ l, cover, highlighted, refCb, onEnter, onLeave }: {
           <div className="flex flex-wrap gap-1 mt-2">
             {tags.map((t) => (
               <span key={t.key} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t.label}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    </Link>
+  )
+}
+
+function BuildingCard({ item, cover, highlighted, refCb, onEnter, onLeave }: {
+  item: Extract<Item, { kind: 'building' }>
+  cover?: string
+  highlighted?: boolean
+  refCb?: (el: HTMLAnchorElement | null) => void
+  onEnter?: () => void
+  onLeave?: () => void
+}) {
+  const { building, units, minPrice, maxPrice } = item
+  const priceLabel = minPrice === maxPrice ? `$${minPrice}` : `$${minPrice}\u2013$${maxPrice}`
+  const types = Array.from(new Set(units.map((u) => TYPE_LABELS[u.type] || u.type))).slice(0, 3)
+  return (
+    <Link
+      href={`/building/${item.id}`}
+      ref={refCb}
+      onMouseEnter={onEnter}
+      onMouseLeave={onLeave}
+      className={`group block rounded-xl bg-white overflow-hidden border transition ${highlighted ? 'border-indigo-500 shadow-lg' : 'border-gray-100 shadow hover:shadow-md'}`}
+    >
+      <div className="relative h-44 bg-gray-100">
+        {cover ? (
+          <img src={cover} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
+        )}
+        <span className="absolute top-2 left-2 bg-indigo-600 text-white text-xs font-medium px-2 py-1 rounded-full">{units.length} space{units.length > 1 ? 's' : ''}</span>
+      </div>
+      <div className="p-4">
+        <p className="font-semibold text-gray-900 truncate">{building?.name || 'Building'}</p>
+        <p className="text-sm text-gray-500 mt-1">{[building?.city || units[0].city, building?.country || units[0].country].filter(Boolean).join(' \u00b7 ')}</p>
+        <p className="text-indigo-700 font-bold mt-2">{priceLabel}<span className="text-gray-400 font-normal text-sm"> / day</span></p>
+        {types.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-2">
+            {types.map((t) => (
+              <span key={t} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{t}</span>
             ))}
           </div>
         )}
@@ -174,19 +266,28 @@ export default function HomePage() {
     fetchListings(search)
   }
 
-  const coverImage = (l: Listing) =>
-    l.listing_images?.slice().sort((a, b) => a.position - b.position)[0]?.url
-
   const filtered = useMemo(() => {
     let arr = listings.slice()
     if (typeFilter.size) arr = arr.filter((l) => typeFilter.has(l.type))
     if (amenityFilter.size) arr = arr.filter((l) => Array.from(amenityFilter).every((k) => (l as any)[k]))
     if (maxPrice) arr = arr.filter((l) => (l.price ?? 0) <= maxPrice)
-    if (sortBy === 'price_asc') arr.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
-    else if (sortBy === 'price_desc') arr.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
-    else if (sortBy === 'rating_desc') arr.sort((a, b) => (b.avg_rating || 0) - (a.avg_rating || 0))
     return arr
-  }, [listings, typeFilter, amenityFilter, maxPrice, sortBy])
+  }, [listings, typeFilter, amenityFilter, maxPrice])
+
+  const items = useMemo(() => buildItems(filtered, sortBy), [filtered, sortBy])
+  const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
+
+  const renderCard = (it: Item, withRef = false) => {
+    const handlers = {
+      highlighted: hoveredId === it.id,
+      onEnter: () => { setHoveredId(it.id); if (withRef) schedulePopup(it.id) },
+      onLeave: () => { setHoveredId(null); if (withRef) cancelPopup() },
+      refCb: withRef ? (el: HTMLAnchorElement | null) => { cardRefs.current[it.id] = el } : undefined,
+    }
+    return it.kind === 'building'
+      ? <BuildingCard key={it.id} item={it} cover={buildingCover(it.units)} {...handlers} />
+      : <SpaceCard key={it.id} l={it.unit} cover={firstImage(it.unit)} {...handlers} />
+  }
 
   // Build / rebuild the map (map view only) when results change
   useEffect(() => {
@@ -195,9 +296,9 @@ export default function HomePage() {
     loadLeaflet().then((L) => {
       if (cancelled || !L || !mapElRef.current) return
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
-      const pts = filtered
-        .map((l) => ({ l, c: coordsFor(l) }))
-        .filter((x) => x.c) as { l: Listing; c: [number, number] }[]
+      const pts = items
+        .map((it) => ({ it, c: itemCoords(it) }))
+        .filter((x) => x.c) as { it: Item; c: [number, number] }[]
       const center: [number, number] = pts.length ? pts[0].c : [40.7549, -73.9840]
       const map = L.map(mapElRef.current, { scrollWheelZoom: true }).setView(center, 12)
       mapRef.current = map
@@ -206,33 +307,42 @@ export default function HomePage() {
         maxZoom: 19,
       }).addTo(map)
       markersRef.current = {}
-      pts.forEach(({ l, c }) => {
+      pts.forEach(({ it, c }) => {
+        const isB = it.kind === 'building'
+        const price = isB ? it.minPrice : (it.unit.price ?? 0)
+        const more = isB && it.maxPrice > it.minPrice
+        const href = isB ? `/building/${it.id}` : `/rooms?id=${it.id}`
+        const title = isB ? (it.building?.name || 'Building') : (it.unit.unit_name || it.unit.description || 'Workspace')
+        const loc = isB
+          ? [it.building?.city || it.units[0].city, it.building?.country || it.units[0].country]
+          : [it.unit.city, it.unit.country]
+        const cover = isB ? buildingCover(it.units) : firstImage(it.unit)
+        const sub = isB ? `${it.units.length} space${it.units.length > 1 ? 's' : ''} \u00b7 ` : ''
         const icon = L.divIcon({
           className: 'cs-pin-wrap',
-          html: `<div class="cs-pin">$${l.price}</div>`,
-          iconSize: [46, 26],
-          iconAnchor: [23, 13],
+          html: `<div class="cs-pin">$${price}${more ? '+' : ''}</div>`,
+          iconSize: [50, 26],
+          iconAnchor: [25, 13],
         })
         const m = L.marker(c, { icon }).addTo(map)
-        const cover = coverImage(l)
         const popHtml =
-          `<a class="cs-pop" href="/rooms?id=${l.id}">` +
+          `<a class="cs-pop" href="${href}">` +
           (cover ? `<img src="${cover}" alt="" />` : '') +
           `<div class="cs-pop-body">` +
-          `<div class="cs-pop-title">${esc(l.unit_name || l.description || 'Workspace')}</div>` +
-          `<div class="cs-pop-loc">${esc([l.city, l.country].filter(Boolean).join(', '))}</div>` +
-          `<div class="cs-pop-price">$${l.price} <span>/ day</span></div>` +
+          `<div class="cs-pop-title">${esc(title)}</div>` +
+          `<div class="cs-pop-loc">${esc(loc.filter(Boolean).join(', '))}</div>` +
+          `<div class="cs-pop-price">${sub}$${price}${more ? '+' : ''} <span>/ day</span></div>` +
           `</div></a>`
         m.bindPopup(popHtml, { className: 'cs-popup', minWidth: 220, maxWidth: 240, offset: [0, -10] })
         m.on('mouseover', () => {
-          setHoveredId(l.id)
-          const el = cardRefs.current[l.id]
+          setHoveredId(it.id)
+          const el = cardRefs.current[it.id]
           if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
-          schedulePopup(l.id)
+          schedulePopup(it.id)
         })
         m.on('mouseout', () => { setHoveredId(null); cancelPopup() })
-        m.on('click', () => { window.location.href = `/rooms?id=${l.id}` })
-        markersRef.current[l.id] = m
+        m.on('click', () => { window.location.href = href })
+        markersRef.current[it.id] = m
       })
       if (pts.length > 1) {
         map.fitBounds(pts.map((p) => p.c), { padding: [60, 60], maxZoom: 14 })
@@ -244,7 +354,7 @@ export default function HomePage() {
       cancelPopup()
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
     }
-  }, [hasSearched, view, filtered])
+  }, [hasSearched, view, items])
 
   // Highlight markers when hoveredId changes (no panning)
   useEffect(() => {
@@ -256,7 +366,8 @@ export default function HomePage() {
     })
   }, [hoveredId])
 
-  const withCoords = filtered.filter((l) => coordsFor(l))
+  const withCoords = items.filter((it) => itemCoords(it))
+  const buildingCount = items.filter((it) => it.kind === 'building').length
 
   const filterBar = (
     <div className="border-b bg-white sticky top-0 z-[500]">
@@ -274,7 +385,7 @@ export default function HomePage() {
           <option value={250}>Up to $250</option>
           <option value={500}>Up to $500</option>
         </select>
-        {Object.keys(TYPE_LABELS).map((t) => (
+        {Object.keys(TYPE_LABELS).slice(0, 4).map((t) => (
           <button
             key={t}
             onClick={() => toggleSet(setTypeFilter, typeFilter, t)}
@@ -304,8 +415,8 @@ export default function HomePage() {
     <>
       <h2 className="text-xl font-bold">{activeQuery ? `Results for "${activeQuery}"` : 'All spaces'}</h2>
       <p className="text-sm text-gray-500 mb-5">
-        {filtered.length} space{filtered.length === 1 ? '' : 's'}
-        {view === 'map' && withCoords.length < filtered.length ? ' · some not shown on map' : ''}
+        {items.length} result{items.length === 1 ? '' : 's'}{buildingCount > 0 ? ` \u00b7 ${buildingCount} building${buildingCount === 1 ? '' : 's'}` : ''}
+        {view === 'map' && withCoords.length < items.length ? ' \u00b7 some not shown on map' : ''}
       </p>
     </>
   )
@@ -351,9 +462,9 @@ export default function HomePage() {
       </div>
 
       {!hasSearched ? (
-        /* Default: grid of all spaces */
+        /* Default: grid of all spaces grouped into buildings */
         <div className="max-w-7xl mx-auto px-4 py-12 w-full">
-          <h2 className="text-2xl font-bold mb-8">All spaces</h2>
+          <h2 className="text-2xl font-bold mb-8">Browse spaces</h2>
           {loading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(8)].map((_, i) => (
@@ -367,13 +478,11 @@ export default function HomePage() {
                 </div>
               ))}
             </div>
-          ) : listings.length === 0 ? (
+          ) : defaultItems.length === 0 ? (
             <p className="text-gray-500 text-center py-20">No spaces found.</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {listings.map((l) => (
-                <SpaceCard key={l.id} l={l} cover={coverImage(l)} />
-              ))}
+              {defaultItems.map((it) => renderCard(it))}
             </div>
           )}
         </div>
@@ -386,20 +495,11 @@ export default function HomePage() {
               {resultsHeader}
               {loading ? (
                 <p className="text-gray-400 py-10">Loading…</p>
-              ) : filtered.length === 0 ? (
+              ) : items.length === 0 ? (
                 <p className="text-gray-500 py-10">No spaces match your filters.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {filtered.map((l) => (
-                    <SpaceCard
-                      key={l.id}
-                      l={l}
-                      cover={coverImage(l)}
-                      highlighted={hoveredId === l.id}
-                      onEnter={() => setHoveredId(l.id)}
-                      onLeave={() => setHoveredId(null)}
-                    />
-                  ))}
+                  {items.map((it) => renderCard(it))}
                 </div>
               )}
             </div>
@@ -413,21 +513,11 @@ export default function HomePage() {
                 {resultsHeader}
                 {loading ? (
                   <p className="text-gray-400 py-10">Loading…</p>
-                ) : filtered.length === 0 ? (
+                ) : items.length === 0 ? (
                   <p className="text-gray-500 py-10">No spaces match your filters.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    {filtered.map((l) => (
-                      <SpaceCard
-                        key={l.id}
-                        l={l}
-                        cover={coverImage(l)}
-                        highlighted={hoveredId === l.id}
-                        refCb={(el) => { cardRefs.current[l.id] = el }}
-                        onEnter={() => { setHoveredId(l.id); schedulePopup(l.id) }}
-                        onLeave={() => { setHoveredId(null); cancelPopup() }}
-                      />
-                    ))}
+                    {items.map((it) => renderCard(it, true))}
                   </div>
                 )}
               </div>

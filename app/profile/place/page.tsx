@@ -35,6 +35,7 @@ const AMENITIES = [
 type Img = { url: string; path: string }
 type Unit = {
   key: string
+  id?: string
   unit_name: string
   type: string
   price: string
@@ -60,7 +61,10 @@ export default function CreateBuildingPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const editId = searchParams.get('id')
+  const editBuildingId = searchParams.get('building')
+  const editing = !!(editId || editBuildingId)
   const mounted = useRef(false)
+  const originalUnitIds = useRef<string[]>([])
 
   const [step, setStep] = useState(1)
   const [loading, setLoading] = useState(false)
@@ -73,20 +77,26 @@ export default function CreateBuildingPage() {
   const [units, setUnits] = useState<Unit[]>([blankUnit()])
 
   useEffect(() => {
-    if (!mounted.current && editId) { mounted.current = true; loadForEdit(editId) }
+    if (! mounted.current && (editId || editBuildingId)) { mounted.current = true; loadForEdit() }
   })
 
-  const loadForEdit = async (id: string) => {
-    const { data: listing } = await supabase
-      .from('listings').select('*, listing_images(*), buildings(*)').eq('id', id).single()
-    if (!listing) return
-    const b = (listing as any).buildings
+  const loadForEdit = async () => {
+    let bid = editBuildingId
+    if (! bid && editId) {
+      const { data: l } = await supabase.from('listings').select('building_id').eq('id', editId).single()
+      bid = (l as any)?.building_id || null
+    }
+    if (! bid) return
+    const { data: b } = await supabase.from('buildings').select('*').eq('id', bid).single()
     if (b) setBuilding({
       id: b.id, name: b.name || '', country: b.country || 'USA', address: b.address || '',
       address_etc: b.address_etc || '', city: b.city || '', state: b.state || '', zip_code: b.zip_code || '',
       description: b.description || '',
     })
-    setUnits([blankUnit({
+    const { data: ls } = await supabase
+      .from('listings').select('*, listing_images(*)').eq('building_id', bid).order('created_at', { ascending: true })
+    const us = (ls || []).map((listing: any) => blankUnit({
+      id: listing.id,
       unit_name: listing.unit_name || '', type: listing.type || 'private office',
       price: String(listing.price || ''), description: listing.description || '',
       opening_time: listing.opening_time || '09:00', closing_time: listing.closing_time || '18:00',
@@ -96,7 +106,9 @@ export default function CreateBuildingPage() {
       free_parking: listing.free_parking, paid_parking: listing.paid_parking,
       images: (listing.listing_images || []).sort((a: any, z: any) => a.position - z.position)
         .map((im: any) => ({ url: im.url, path: im.storage_path })),
-    })])
+      expanded: false,
+    }))
+    if (us.length) { setUnits(us); originalUnitIds.current = us.map((u) => u.id).filter(Boolean) as string[] }
   }
 
   const setB = (f: string, v: any) => setBuilding(b => ({ ...b, [f]: v }))
@@ -176,7 +188,7 @@ export default function CreateBuildingPage() {
     if (geo) { bPayload.lat = geo[0]; bPayload.lng = geo[1] }
 
     let buildingId = building.id
-    if (editId && buildingId) {
+    if (editing && buildingId) {
       await supabase.from('buildings').update(bPayload).eq('id', buildingId)
     } else {
       const { data: nb, error } = await supabase.from('buildings').insert(bPayload).select().single()
@@ -184,21 +196,30 @@ export default function CreateBuildingPage() {
       buildingId = nb.id
     }
 
-    if (editId) {
-      const u = units[0]
-      const { error } = await supabase.from('listings').update(unitPayload(u, user.id, buildingId!)).eq('id', editId)
-      if (error) { toast.error('Update failed'); setLoading(false); return }
-      await saveImages(editId, u.images)
+    if (editing) {
+      for (const u of units) {
+        if (u.id) {
+          const { error } = await supabase.from('listings').update(unitPayload(u, user.id, buildingId!)).eq('id', u.id)
+          if (error) { toast.error('A unit failed to update'); setLoading(false); return }
+          await saveImages(u.id, u.images)
+        } else {
+          const { data: nl, error } = await supabase.from('listings').insert(unitPayload(u, user.id, buildingId!)).select().single()
+          if (error || ! nl) { toast.error('A unit failed to save'); setLoading(false); return }
+          await saveImages(nl.id, u.images)
+        }
+      }
+      const removed = originalUnitIds.current.filter((id) => ! units.some((u) => u.id === id))
+      for (const id of removed) { await supabase.from('listings').update({ is_published: false }).eq('id', id) }
     } else {
       for (const u of units) {
         const { data: nl, error } = await supabase.from('listings').insert(unitPayload(u, user.id, buildingId!)).select().single()
-        if (error || !nl) { toast.error('A unit failed to save'); setLoading(false); return }
+        if (error || ! nl) { toast.error('A unit failed to save'); setLoading(false); return }
         await saveImages(nl.id, u.images)
       }
     }
 
     await supabase.from('profiles').update({ is_host: true }).eq('id', user.id)
-    toast.success(editId ? 'Listing updated!' : `Published ${units.length} unit${units.length > 1 ? 's' : ''}!`)
+    toast.success(editing ? 'Changes saved!' : `Published ${units.length} unit${units.length > 1 ? 's' : ''}!`)
     router.push('/host')
     setLoading(false)
   }
@@ -352,7 +373,7 @@ export default function CreateBuildingPage() {
             </div>
           ))}
 
-            {!editId && (
+            {(
               <div className="flex gap-3">
                 <button onClick={() => addUnit(true)} className="flex-1 bg-indigo-50 text-indigo-700 font-medium py-3 rounded-xl hover:bg-indigo-100 text-sm">
                   + Duplicate first unit
@@ -397,7 +418,7 @@ export default function CreateBuildingPage() {
           ) : (
             <button onClick={handleSubmit} disabled={loading}
               className="px-6 py-3 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50">
-              {loading ? 'Saving…' : editId ? 'Update listing' : 'Publish building'}
+              {loading ? 'Saving…' : editing ? 'Save changes' : 'Publish building'}
             </button>
           )}
         </div>

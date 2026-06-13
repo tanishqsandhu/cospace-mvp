@@ -84,7 +84,12 @@ export default function HostPage() {
       <div className="max-w-5xl mx-auto px-4 py-10">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-2xl font-bold">Host Dashboard</h1>
-          <Link href="/profile/place" className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">+ Add listing</Link>
+          <div className="flex items-center gap-2">
+            {listing?.building_id && (
+              <Link href={`/profile/place?building=${listing.building_id}`} className="text-sm font-medium text-indigo-700 border border-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-50">Edit building</Link>
+            )}
+            <Link href="/profile/place" className="bg-indigo-600 text-white px-5 py-2 rounded-lg hover:bg-indigo-700 text-sm font-medium">+ Add listing</Link>
+          </div>
         </div>
 
         {listings.length > 1 && (

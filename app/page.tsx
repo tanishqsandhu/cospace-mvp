@@ -25,6 +25,21 @@ function coordsFor(l: Listing): [number, number] | null {
   return null
 }
 
+// ── Geocoding (OpenStreetMap Nominatim, no key) ───────────────────────
+const geoCache = new Map<string, [number, number] | null>()
+async function geocode(q: string): Promise<[number, number] | null> {
+  const key = q.trim().toLowerCase()
+  if (!key) return null
+  if (geoCache.has(key)) return geoCache.get(key) || null
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`)
+    const arr = await res.json()
+    const hit = (Array.isArray(arr) && arr[0]) ? [parseFloat(arr[0].lat), parseFloat(arr[0].lon)] as [number, number] : null
+    geoCache.set(key, hit)
+    return hit
+  } catch { geoCache.set(key, null); return null }
+}
+
 const esc = (s: string) =>
   s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -93,6 +108,16 @@ function buildItems(arr: Listing[], sortBy: string): Item[] {
 }
 
 const itemCoords = (it: Item) => it.kind === 'building' ? coordsFor(it.units[0]) : coordsFor(it.unit)
+const locString = (it: Item): string => {
+  const src: any = it.kind === 'building' ? (it.building || it.units[0]) : it.unit
+  return [src.address, src.city, src.state, src.country].filter(Boolean).join(', ')
+}
+const resolvedCoords = (it: Item): [number, number] | null => {
+  const hard = itemCoords(it)
+  if (hard) return hard
+  const k = locString(it).trim().toLowerCase()
+  return geoCache.get(k) || null
+}
 
 // ── Leaflet loader (CDN, client-only) ─────────────────────────────────
 let leafletPromise: Promise<any> | null = null
@@ -216,6 +241,8 @@ export default function HomePage() {
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set())
   const [amenityFilter, setAmenityFilter] = useState<Set<string>>(new Set())
   const [maxPrice, setMaxPrice] = useState(0)
+  const [geoVersion, setGeoVersion] = useState(0)
+  const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null)
 
   const supabase = createClient()
 
@@ -267,6 +294,8 @@ export default function HomePage() {
     setActiveQuery(search)
     setHasSearched(true)
     fetchListings(search)
+    if (search.trim()) geocode(search).then((c) => setSearchCenter(c))
+    else setSearchCenter(null)
   }
 
   const filtered = useMemo(() => {
@@ -278,6 +307,23 @@ export default function HomePage() {
   }, [listings, typeFilter, amenityFilter, maxPrice])
 
   const items = useMemo(() => buildItems(filtered, sortBy), [filtered, sortBy])
+
+  // Geocode any listings that aren't in the hard-coded table
+  useEffect(() => {
+    let cancelled = false
+    const missing = items.filter((it) => !itemCoords(it) && locString(it) && !geoCache.has(locString(it).trim().toLowerCase()))
+    if (!missing.length) return
+    ;(async () => {
+      for (const it of missing) {
+        if (cancelled) return
+        await geocode(locString(it))
+        await new Promise((r) => setTimeout(r, 1100))
+      }
+      if (!cancelled) setGeoVersion((v) => v + 1)
+    })()
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items])
   const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
 
   const renderCard = (it: Item, withRef = false) => {
@@ -300,7 +346,7 @@ export default function HomePage() {
       if (cancelled || !L || !mapElRef.current) return
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
       const pts = items
-        .map((it) => ({ it, c: itemCoords(it) }))
+        .map((it) => ({ it, c: resolvedCoords(it) }))
         .filter((x) => x.c) as { it: Item; c: [number, number] }[]
       // Spread pins that resolve to the same coordinate so they don't overlap
       const groups = new Map<string, { it: Item; c: [number, number] }[]>()
@@ -317,7 +363,7 @@ export default function HomePage() {
           })
         }
       })
-      const center: [number, number] = pts.length ? pts[0].c : [40.7549, -73.9840]
+      const center: [number, number] = searchCenter || (pts.length ? pts[0].c : [40.7549, -73.9840])
       const map = L.map(mapElRef.current, { scrollWheelZoom: true }).setView(center, 12)
       mapRef.current = map
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -392,6 +438,8 @@ export default function HomePage() {
       })
       if (pts.length > 1) {
         map.fitBounds(pts.map((p) => p.c), { padding: [60, 60], maxZoom: 14 })
+      } else if (searchCenter) {
+        map.setView(searchCenter, 12)
       }
       setTimeout(() => { try { map.invalidateSize() } catch {} }, 120)
     })
@@ -400,7 +448,7 @@ export default function HomePage() {
       cancelPopup()
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
     }
-  }, [hasSearched, view, items])
+  }, [hasSearched, view, items, geoVersion, searchCenter])
 
   // Highlight markers when hoveredId changes (no panning)
   useEffect(() => {
@@ -412,7 +460,7 @@ export default function HomePage() {
     })
   }, [hoveredId])
 
-  const withCoords = items.filter((it) => itemCoords(it))
+  const withCoords = items.filter((it) => resolvedCoords(it))
   const buildingCount = items.filter((it) => it.kind === 'building').length
 
   const filterBar = (

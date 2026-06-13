@@ -183,6 +183,9 @@ function BuildingCard({ item, cover, highlighted, refCb, onEnter, onLeave }: {
           <div className="w-full h-full flex items-center justify-center text-gray-300 text-sm">No image</div>
         )}
         <span className="absolute top-2 left-2 bg-indigo-600 text-white text-xs font-medium px-2 py-1 rounded-full">{units.length} space{units.length > 1 ? 's' : ''}</span>
+        {item.rating > 0 && (
+          <span className="absolute top-2 right-2 bg-white/90 text-xs font-medium px-2 py-1 rounded-full">⭐ {item.rating.toFixed(1)}</span>
+        )}
       </div>
       <div className="p-4">
         <p className="font-semibold text-gray-900 truncate">{building?.name || 'Building'}</p>
@@ -319,7 +322,9 @@ export default function HomePage() {
         const cover = isB ? buildingCover(it.units) : firstImage(it.unit)
         const icon = L.divIcon({
           className: 'cs-pin-wrap',
-          html: `<div class="cs-pin">$${price}${more ? '+' : ''}</div>`,
+          html: isB
+            ? `<div class="cs-pin cs-pin-b">$${price}${more ? '+' : ''}<span class="cs-pin-count">${it.units.length}</span></div>`
+            : `<div class="cs-pin">$${price}</div>`,
           iconSize: [50, 26],
           iconAnchor: [25, 13],
         })
@@ -336,10 +341,14 @@ export default function HomePage() {
               `<div class="cs-brow-meta">${esc(TYPE_LABELS[u.type] || u.type)} \u00b7 $${u.price}/day</div>` +
               `</div></a>`
           }).join('')
+          const rated = it.units.filter((u) => (u.avg_rating || 0) > 0)
+          const bAvg = rated.length ? rated.reduce((acc, u) => acc + (u.avg_rating || 0), 0) / rated.length : 0
+          const bRev = it.units.reduce((acc, u) => acc + (u.review_count || 0), 0)
+          const ratingStr = bAvg > 0 ? ` \u00b7 \u2605 ${bAvg.toFixed(1)} (${bRev})` : ''
           popHtml =
             `<div class="cs-bpop">` +
             `<div class="cs-bpop-head"><div class="cs-bpop-title">${esc(title)}</div>` +
-            `<div class="cs-bpop-sub">${esc(loc.filter(Boolean).join(', '))} \u00b7 ${it.units.length} unit${it.units.length > 1 ? 's' : ''}</div></div>` +
+            `<div class="cs-bpop-sub">${esc(loc.filter(Boolean).join(', '))} \u00b7 ${it.units.length} unit${it.units.length > 1 ? 's' : ''}${ratingStr}</div></div>` +
             `<div class="cs-bpop-list">${rows}</div>` +
             `<a class="cs-bpop-foot" href="${href}">View building \u2192</a>` +
             `</div>`
@@ -451,6 +460,9 @@ export default function HomePage() {
           font-size:12px; line-height:1; padding:5px 9px; border-radius:9999px;
           box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:all .12s; }
         .cs-pin-active { background:#4f46e5; color:#fff; transform:scale(1.12); }
+        .cs-pin { position: relative; }
+        .cs-pin-b { border-color:#4338ca; }
+        .cs-pin-count { position:absolute; top:-8px; right:-9px; background:#4f46e5; color:#fff; border:1.5px solid #fff; border-radius:9999px; min-width:17px; height:17px; font-size:10px; line-height:15px; text-align:center; padding:0 3px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
         .leaflet-container { font: inherit; }
         .cs-popup .leaflet-popup-content-wrapper { padding:0; overflow:hidden; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.18); }
         .cs-popup .leaflet-popup-content { margin:0; width:220px !important; }

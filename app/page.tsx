@@ -310,7 +310,7 @@ export default function HomePage() {
       })
       groups.forEach((arr) => {
         if (arr.length > 1) {
-          const R = 0.0014
+          const R = 0.0016 + arr.length * 0.00012
           arr.forEach((p, i) => {
             const ang = (2 * Math.PI * i) / arr.length
             p.c = [p.c[0] + R * Math.cos(ang), p.c[1] + R * Math.sin(ang)]

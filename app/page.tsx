@@ -302,6 +302,21 @@ export default function HomePage() {
       const pts = items
         .map((it) => ({ it, c: itemCoords(it) }))
         .filter((x) => x.c) as { it: Item; c: [number, number] }[]
+      // Spread pins that resolve to the same coordinate so they don't overlap
+      const groups = new Map<string, { it: Item; c: [number, number] }[]>()
+      pts.forEach((p) => {
+        const k = `${p.c[0].toFixed(4)},${p.c[1].toFixed(4)}`
+        const a = groups.get(k) || []; a.push(p); groups.set(k, a)
+      })
+      groups.forEach((arr) => {
+        if (arr.length > 1) {
+          const R = 0.0014
+          arr.forEach((p, i) => {
+            const ang = (2 * Math.PI * i) / arr.length
+            p.c = [p.c[0] + R * Math.cos(ang), p.c[1] + R * Math.sin(ang)]
+          })
+        }
+      })
       const center: [number, number] = pts.length ? pts[0].c : [40.7549, -73.9840]
       const map = L.map(mapElRef.current, { scrollWheelZoom: true }).setView(center, 12)
       mapRef.current = map

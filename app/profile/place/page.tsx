@@ -7,6 +7,16 @@ import Header from '@/components/layout/Header'
 
 export const dynamic = 'force-dynamic'
 
+async function geocodeAddress(q: string): Promise<[number, number] | null> {
+  if (!q.trim()) return null
+  try {
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`)
+    const arr = await res.json()
+    if (Array.isArray(arr) && arr[0]) return [parseFloat(arr[0].lat), parseFloat(arr[0].lon)]
+  } catch {}
+  return null
+}
+
 const UNIT_TYPES = [
   { value: 'private office', label: 'Private office' },
   { value: 'hot desk', label: 'Hot desk' },
@@ -157,11 +167,13 @@ export default function CreateBuildingPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/auth/login'); return }
 
-    const bPayload = {
+    const bPayload: any = {
       host_id: user.id, name: building.name, country: building.country, address: building.address,
       address_etc: building.address_etc, city: building.city, state: building.state,
       zip_code: building.zip_code, description: building.description,
     }
+    const geo = await geocodeAddress([building.address, building.city, building.state, building.country].filter(Boolean).join(', '))
+    if (geo) { bPayload.lat = geo[0]; bPayload.lng = geo[1] }
 
     let buildingId = building.id
     if (editId && buildingId) {

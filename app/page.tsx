@@ -107,7 +107,14 @@ function buildItems(arr: Listing[], sortBy: string): Item[] {
   return items
 }
 
-const itemCoords = (it: Item) => it.kind === 'building' ? coordsFor(it.units[0]) : coordsFor(it.unit)
+const itemCoords = (it: Item): [number, number] | null => {
+  if (it.kind === 'building') {
+    const b: any = it.building
+    if (b && typeof b.lat === 'number' && typeof b.lng === 'number') return [b.lat, b.lng]
+    return coordsFor(it.units[0])
+  }
+  return coordsFor(it.unit)
+}
 const locString = (it: Item): string => {
   const src: any = it.kind === 'building' ? (it.building || it.units[0]) : it.unit
   return [src.address, src.city, src.state, src.country].filter(Boolean).join(', ')
@@ -243,6 +250,7 @@ export default function HomePage() {
   const [maxPrice, setMaxPrice] = useState(0)
   const [geoVersion, setGeoVersion] = useState(0)
   const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null)
+  const [areaBounds, setAreaBounds] = useState<[number, number, number, number] | null>(null)
 
   const supabase = createClient()
 
@@ -293,7 +301,8 @@ export default function HomePage() {
     e.preventDefault()
     setActiveQuery(search)
     setHasSearched(true)
-    fetchListings(search)
+    setAreaBounds(null)
+    if (!listings.length) fetchListings('')
     if (search.trim()) geocode(search).then((c) => setSearchCenter(c))
     else setSearchCenter(null)
   }
@@ -324,6 +333,16 @@ export default function HomePage() {
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items])
+
+  // Items shown in the list = those inside the current map viewport (Zillow-style)
+  const displayedItems = useMemo(() => {
+    if (!areaBounds) return items
+    const [s, w, n, e] = areaBounds
+    return items.filter((it) => {
+      const c = resolvedCoords(it)
+      return c && c[0] >= s && c[0] <= n && c[1] >= w && c[1] <= e
+    })
+  }, [items, areaBounds, geoVersion])
   const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
 
   const renderCard = (it: Item, withRef = false) => {
@@ -366,6 +385,10 @@ export default function HomePage() {
       const center: [number, number] = searchCenter || (pts.length ? pts[0].c : [40.7549, -73.9840])
       const map = L.map(mapElRef.current, { scrollWheelZoom: true }).setView(center, 12)
       mapRef.current = map
+      map.on('moveend', () => {
+        const b = map.getBounds()
+        setAreaBounds([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])
+      })
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '&copy; OpenStreetMap contributors',
         maxZoom: 19,
@@ -460,8 +483,8 @@ export default function HomePage() {
     })
   }, [hoveredId])
 
-  const withCoords = items.filter((it) => resolvedCoords(it))
-  const buildingCount = items.filter((it) => it.kind === 'building').length
+  const withCoords = displayedItems.filter((it) => resolvedCoords(it))
+  const buildingCount = displayedItems.filter((it) => it.kind === 'building').length
 
   const filterBar = (
     <div className="border-b bg-white sticky top-0 z-[500]">
@@ -509,8 +532,7 @@ export default function HomePage() {
     <>
       <h2 className="text-xl font-bold">{activeQuery ? `Results for "${activeQuery}"` : 'All spaces'}</h2>
       <p className="text-sm text-gray-500 mb-5">
-        {items.length} result{items.length === 1 ? '' : 's'}{buildingCount > 0 ? ` \u00b7 ${buildingCount} building${buildingCount === 1 ? '' : 's'}` : ''}
-        {view === 'map' && withCoords.length < items.length ? ' \u00b7 some not shown on map' : ''}
+        {displayedItems.length} result{displayedItems.length === 1 ? '' : 's'}{buildingCount > 0 ? ` \u00b7 ${buildingCount} building${buildingCount === 1 ? '' : 's'}` : ''}
       </p>
     </>
   )
@@ -605,11 +627,11 @@ export default function HomePage() {
               {resultsHeader}
               {loading ? (
                 <p className="text-gray-400 py-10">Loading…</p>
-              ) : items.length === 0 ? (
+              ) : displayedItems.length === 0 ? (
                 <p className="text-gray-500 py-10">No spaces match your filters.</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                  {items.map((it) => renderCard(it))}
+                  {displayedItems.map((it) => renderCard(it))}
                 </div>
               )}
             </div>
@@ -623,11 +645,11 @@ export default function HomePage() {
                 {resultsHeader}
                 {loading ? (
                   <p className="text-gray-400 py-10">Loading…</p>
-                ) : items.length === 0 ? (
+                ) : displayedItems.length === 0 ? (
                   <p className="text-gray-500 py-10">No spaces match your filters.</p>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    {items.map((it) => renderCard(it, true))}
+                    {displayedItems.map((it) => renderCard(it, true))}
                   </div>
                 )}
               </div>

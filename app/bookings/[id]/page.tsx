@@ -6,6 +6,7 @@ import Link from 'next/link'
 import moment from 'moment'
 import toast from 'react-hot-toast'
 import Header from '@/components/layout/Header'
+import QRCode from 'qrcode'
 
 const TYPE_LABELS: Record<string, string> = {
   'entire place': 'Co Working', 'room': 'Office', 'shared room': 'Meeting Room', 'event space': 'Event Space',
@@ -37,6 +38,7 @@ export default function BookingDetailPage() {
   const [showReport, setShowReport] = useState(false)
   const [filingInc, setFilingInc] = useState(false)
   const [incForm, setIncForm] = useState({ category: '', severity: 'medium', description: '' })
+  const [qrUrl, setQrUrl] = useState('')
   const [chatUnavailable, setChatUnavailable] = useState(false)
   const endRef = useRef<HTMLDivElement | null>(null)
 
@@ -58,6 +60,13 @@ export default function BookingDetailPage() {
   }, [booking, chatUnavailable])
 
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages.length])
+
+  useEffect(() => {
+    if (booking?.status === 'confirmed' && typeof window !== 'undefined') {
+      QRCode.toDataURL(`${window.location.origin}/checkin/${bookingId}`, { width: 220, margin: 1 }).then(setQrUrl).catch(() => {})
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [booking, bookingId])
 
   const fetchBooking = async () => {
     const { data } = await supabase
@@ -186,6 +195,17 @@ export default function BookingDetailPage() {
                 </div>
               </div>
             </div>
+            {booking.status === 'confirmed' && (
+              <div className="bg-white rounded-2xl shadow p-5 text-center">
+                <p className="font-semibold text-sm mb-1">Check-in QR</p>
+                {booking.checked_in_at ? (
+                  <p className="text-xs text-green-600 mb-3">Checked in {moment(booking.checked_in_at).format('lll')}</p>
+                ) : (
+                  <p className="text-xs text-gray-400 mb-3">Scan at the space to check in</p>
+                )}
+                {qrUrl ? <img src={qrUrl} alt="Booking check-in QR" className="mx-auto w-44 h-44" /> : <div className="w-44 h-44 mx-auto bg-gray-100 rounded animate-pulse" />}
+              </div>
+            )}
             <div className="bg-white rounded-2xl shadow p-5">
               <p className="font-semibold text-sm mb-3">Safety & issues</p>
               {incidents.length === 0 ? (

@@ -120,6 +120,7 @@ export interface Booking {
   total_price: number
   status: 'pending' | 'awaiting_approval' | 'confirmed' | 'cancelled' | 'completed'
   responded_at: string | null
+  checked_in_at: string | null
   stripe_payment_intent_id: string | null
   stripe_session_id: string | null
   paid: boolean

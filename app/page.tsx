@@ -317,7 +317,6 @@ export default function HomePage() {
           ? [it.building?.city || it.units[0].city, it.building?.country || it.units[0].country]
           : [it.unit.city, it.unit.country]
         const cover = isB ? buildingCover(it.units) : firstImage(it.unit)
-        const sub = isB ? `${it.units.length} space${it.units.length > 1 ? 's' : ''} \u00b7 ` : ''
         const icon = L.divIcon({
           className: 'cs-pin-wrap',
           html: `<div class="cs-pin">$${price}${more ? '+' : ''}</div>`,
@@ -325,15 +324,38 @@ export default function HomePage() {
           iconAnchor: [25, 13],
         })
         const m = L.marker(c, { icon }).addTo(map)
-        const popHtml =
-          `<a class="cs-pop" href="${href}">` +
-          (cover ? `<img src="${cover}" alt="" />` : '') +
-          `<div class="cs-pop-body">` +
-          `<div class="cs-pop-title">${esc(title)}</div>` +
-          `<div class="cs-pop-loc">${esc(loc.filter(Boolean).join(', '))}</div>` +
-          `<div class="cs-pop-price">${sub}$${price}${more ? '+' : ''} <span>/ day</span></div>` +
-          `</div></a>`
-        m.bindPopup(popHtml, { className: 'cs-popup', minWidth: 220, maxWidth: 240, offset: [0, -10] })
+        let popHtml: string
+        let popOpts: any
+        if (isB) {
+          const rows = it.units.slice().sort((a, b) => (a.price ?? 0) - (b.price ?? 0)).map((u) => {
+            const uc = firstImage(u)
+            return `<a class="cs-brow" href="/rooms?id=${u.id}">` +
+              (uc ? `<img src="${uc}" alt="" />` : `<div class="cs-brow-noimg"></div>`) +
+              `<div class="cs-brow-body">` +
+              `<div class="cs-brow-title">${esc(u.unit_name || u.description || 'Workspace')}</div>` +
+              `<div class="cs-brow-meta">${esc(TYPE_LABELS[u.type] || u.type)} \u00b7 $${u.price}/day</div>` +
+              `</div></a>`
+          }).join('')
+          popHtml =
+            `<div class="cs-bpop">` +
+            `<div class="cs-bpop-head"><div class="cs-bpop-title">${esc(title)}</div>` +
+            `<div class="cs-bpop-sub">${esc(loc.filter(Boolean).join(', '))} \u00b7 ${it.units.length} unit${it.units.length > 1 ? 's' : ''}</div></div>` +
+            `<div class="cs-bpop-list">${rows}</div>` +
+            `<a class="cs-bpop-foot" href="${href}">View building \u2192</a>` +
+            `</div>`
+          popOpts = { className: 'cs-popup cs-bpopup', minWidth: 250, maxWidth: 270, offset: [0, -10] }
+        } else {
+          popHtml =
+            `<a class="cs-pop" href="${href}">` +
+            (cover ? `<img src="${cover}" alt="" />` : '') +
+            `<div class="cs-pop-body">` +
+            `<div class="cs-pop-title">${esc(title)}</div>` +
+            `<div class="cs-pop-loc">${esc(loc.filter(Boolean).join(', '))}</div>` +
+            `<div class="cs-pop-price">$${price} <span>/ day</span></div>` +
+            `</div></a>`
+          popOpts = { className: 'cs-popup', minWidth: 220, maxWidth: 240, offset: [0, -10] }
+        }
+        m.bindPopup(popHtml, popOpts)
         m.on('mouseover', () => {
           setHoveredId(it.id)
           const el = cardRefs.current[it.id]
@@ -341,7 +363,7 @@ export default function HomePage() {
           schedulePopup(it.id)
         })
         m.on('mouseout', () => { setHoveredId(null); cancelPopup() })
-        m.on('click', () => { window.location.href = href })
+        m.on('click', () => { if (!isB) window.location.href = href })
         markersRef.current[it.id] = m
       })
       if (pts.length > 1) {
@@ -439,6 +461,19 @@ export default function HomePage() {
         .cs-pop-loc { font-size:12px; color:#6b7280; margin-top:1px; }
         .cs-pop-price { font-size:13px; font-weight:700; color:#4338ca; margin-top:4px; }
         .cs-pop-price span { font-weight:400; color:#9ca3af; }
+        .cs-bpopup .leaflet-popup-content { margin:0; width:250px !important; }
+        .cs-bpop-head { padding:10px 12px 8px; }
+        .cs-bpop-title { font-weight:700; font-size:14px; color:#111827; }
+        .cs-bpop-sub { font-size:11px; color:#6b7280; margin-top:1px; }
+        .cs-bpop-list { max-height:228px; overflow-y:auto; border-top:1px solid #f1f1f4; }
+        .cs-brow { display:flex; gap:8px; align-items:center; padding:7px 12px; text-decoration:none; color:inherit; border-bottom:1px solid #f6f6f8; }
+        .cs-brow:hover { background:#f6f6fc; }
+        .cs-brow img, .cs-brow-noimg { width:42px; height:42px; border-radius:8px; object-fit:cover; flex-shrink:0; background:#eee; }
+        .cs-brow-body { min-width:0; }
+        .cs-brow-title { font-size:12.5px; font-weight:600; color:#111827; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .cs-brow-meta { font-size:11px; color:#6b7280; }
+        .cs-bpop-foot { display:block; text-align:center; padding:8px; font-size:12px; font-weight:600; color:#4338ca; text-decoration:none; border-top:1px solid #f1f1f4; }
+        .cs-bpop-foot:hover { background:#f6f6fc; }
       `}</style>
 
       {/* Hero / search */}

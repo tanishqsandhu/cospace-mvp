@@ -55,14 +55,12 @@ const TYPE_LABELS: Record<string, string> = {
   'coworking': 'Coworking',
 }
 const AMENITIES: { key: string; label: string }[] = [
-  { key: 'wifi', label: 'WiFi' },
-  { key: 'workspace', label: 'Workspace' },
-  { key: 'air_conditioning', label: 'A/C' },
-  { key: 'kitchen', label: 'Kitchen' },
-  { key: 'tv', label: 'TV' },
-  { key: 'free_parking', label: 'Free parking' },
+  { key: 'wifi', label: 'WiFi' }, { key: 'workspace', label: 'Desks' }, { key: 'kitchen', label: 'Kitchen' },
+  { key: 'tv', label: 'TV / screen' }, { key: 'coffee', label: 'Coffee' }, { key: 'access_24_7', label: '24/7 access' },
+  { key: 'self_checkin', label: 'Self check-in' }, { key: 'private_lock', label: 'Private lockable door' },
+  { key: 'window_view', label: 'Window view' }, { key: 'whiteboard', label: 'Whiteboard' },
+  { key: 'phone_booth', label: 'Phone booth' }, { key: 'free_parking', label: 'Free parking' },
   { key: 'paid_parking', label: 'Paid parking' },
-  { key: 'washer', label: 'Washer' },
 ]
 
 const firstImage = (l: Listing) =>

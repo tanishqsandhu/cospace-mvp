@@ -10,9 +10,12 @@ const TYPE_LABELS: Record<string, string> = {
   'private office': 'Private office', 'hot desk': 'Hot desk', 'meeting room': 'Meeting room', 'coworking': 'Coworking',
 }
 const AMENITIES: { key: string; label: string }[] = [
-  { key: 'wifi', label: 'WiFi' }, { key: 'air_conditioning', label: 'A/C' }, { key: 'workspace', label: 'Desks' },
-  { key: 'kitchen', label: 'Kitchen' }, { key: 'tv', label: 'TV' }, { key: 'free_parking', label: 'Free parking' },
-  { key: 'paid_parking', label: 'Paid parking' }, { key: 'washer', label: 'Washer' },
+  { key: 'wifi', label: 'WiFi' }, { key: 'workspace', label: 'Desks' }, { key: 'kitchen', label: 'Kitchen' },
+  { key: 'tv', label: 'TV / screen' }, { key: 'coffee', label: 'Coffee' }, { key: 'access_24_7', label: '24/7 access' },
+  { key: 'self_checkin', label: 'Self check-in' }, { key: 'private_lock', label: 'Private lockable door' },
+  { key: 'window_view', label: 'Window view' }, { key: 'whiteboard', label: 'Whiteboard' },
+  { key: 'phone_booth', label: 'Phone booth' }, { key: 'free_parking', label: 'Free parking' },
+  { key: 'paid_parking', label: 'Paid parking' },
 ]
 const firstImage = (l: Listing) => l.listing_images?.slice().sort((a, b) => a.position - b.position)[0]?.url
 
@@ -48,6 +51,7 @@ export default function BuildingPage() {
   const [building, setBuilding] = useState<any>(null)
   const [units, setUnits] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
+  const [buildingImages, setBuildingImages] = useState<string[]>([])
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
 
@@ -66,6 +70,8 @@ export default function BuildingPage() {
       .eq('is_published', true)
       .order('price', { ascending: true })
     setUnits(u || [])
+    const { data: bimgs } = await supabase.from('building_images').select('url, position').eq('building_id', id).order('position')
+    setBuildingImages((bimgs || []).map((x: any) => x.url))
     setLoading(false)
   }
 
@@ -102,7 +108,7 @@ export default function BuildingPage() {
     <div className="min-h-screen bg-gray-50"><Header /><p className="text-center py-20 text-gray-500">Building not found.</p></div>
   )
 
-  const gallery: string[] = []
+  const gallery: string[] = [...buildingImages]
   for (const u of units) { const c = firstImage(u); if (c) gallery.push(c) }
   const prices = units.map((u) => u.price ?? 0)
   const minPrice = prices.length ? Math.min(...prices) : 0

@@ -8,15 +8,26 @@ export default function Header() {
   const [user, setUser] = useState<any>(null)
   const [open, setOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isHost, setIsHost] = useState(false)
   const supabase = createClient()
   const router = useRouter()
   const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const loadAdmin = async (u: any) => {
-      if (!u) { setIsAdmin(false); return }
-      const { data } = await supabase.from('profiles').select('is_admin').eq('id', u.id).single()
+      if (!u) { setIsAdmin(false); setIsHost(false); return }
+      const { data } = await supabase.from('profiles').select('is_admin, is_host, account_type').eq('id', u.id).single()
+      // First login after signup: apply the role chosen at signup (stored in user metadata).
+      const metaType = u.user_metadata?.account_type
+      // Apply the role chosen at signup once (until profile.account_type matches it).
+      if (data && metaType && data.account_type !== metaType) {
+        const host = metaType === 'host'
+        await supabase.from('profiles').update({ account_type: metaType, is_host: host }).eq('id', u.id)
+        setIsAdmin(!!data.is_admin); setIsHost(host)
+        return
+      }
       setIsAdmin(!!data?.is_admin)
+      setIsHost(!!data?.is_host)
     }
     supabase.auth.getUser().then(({ data }) => { setUser(data.user); loadAdmin(data.user) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
@@ -44,7 +55,6 @@ export default function Header() {
   const menuItems = [
     { href: '/messages', label: 'Messages' },
     { href: '/bookings', label: 'My bookings' },
-    { href: '/host', label: 'Host dashboard' },
     { href: '/profile', label: 'Profile' },
     { href: '/settings', label: 'Settings' },
   ]
@@ -66,9 +76,11 @@ export default function Header() {
         <div className="flex items-center gap-3">
           {user ? (
             <>
-              <Link href="/profile/place" className="hidden sm:block text-sm font-medium text-indigo-700 border border-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-50">
-                + List your space
-              </Link>
+              {isHost && (
+                <Link href="/profile/place" className="hidden sm:block text-sm font-medium text-indigo-700 border border-indigo-700 px-4 py-2 rounded-lg hover:bg-indigo-50">
+                  + List your space
+                </Link>
+              )}
               <div className="relative" ref={menuRef}>
                 <button onClick={() => setOpen((o) => !o)}
                   className="w-9 h-9 rounded-full bg-indigo-600 text-white font-semibold flex items-center justify-center hover:ring-2 hover:ring-indigo-300 transition">
@@ -84,12 +96,18 @@ export default function Header() {
                       <Link key={it.href} href={it.href} onClick={() => setOpen(false)}
                         className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">{it.label}</Link>
                     ))}
+                    {isHost && (
+                      <Link href="/host" onClick={() => setOpen(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Host dashboard</Link>
+                    )}
                     {isAdmin && (
                       <Link href="/admin" onClick={() => setOpen(false)}
                         className="block px-4 py-2 text-sm font-semibold text-indigo-700 hover:bg-indigo-50">Admin dashboard</Link>
                     )}
-                    <Link href="/profile/place" onClick={() => setOpen(false)}
-                      className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:hidden">List your space</Link>
+                    {isHost && (
+                      <Link href="/profile/place" onClick={() => setOpen(false)}
+                        className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 sm:hidden">List your space</Link>
+                    )}
                     <div className="border-t my-1" />
                     <button onClick={handleSignOut} className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50">Sign out</button>
                   </div>

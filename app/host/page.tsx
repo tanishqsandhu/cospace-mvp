@@ -11,7 +11,7 @@ import { countDaysExcludingHolidays, PLATFORM_FEE_RATE } from '@/lib/pricing'
 import toast from 'react-hot-toast'
 
 export default function HostPage() {
-  const [tab, setTab] = useState<'today' | 'requests' | 'calendar' | 'reviews' | 'earnings'>('today')
+  const [tab, setTab] = useState<'today' | 'requests' | 'calendar' | 'reviews' | 'earnings' | 'listings'>('today')
   const [listings, setListings] = useState<Listing[]>([])
   const [selectedListing, setSelectedListing] = useState<string | null>(null)
   const [bookings, setBookings] = useState<Booking[]>([])
@@ -29,7 +29,7 @@ export default function HostPage() {
   }, [])
 
   const fetchHostData = async (userId: string) => {
-    const { data: ls } = await supabase.from('listings').select('*').eq('host_id', userId)
+    const { data: ls } = await supabase.from('listings').select('*, buildings(name)').eq('host_id', userId).order('created_at', { ascending: true })
     setListings(ls || [])
     fetch('/api/connect/status').then(r => r.json()).then(setPayout).catch(() => {})
     if (ls?.length) {
@@ -59,6 +59,22 @@ export default function HostPage() {
     if (selectedListing) fetchBookings(selectedListing)
   }
 
+  const togglePublish = async (id: string, next: boolean) => {
+    const { error } = await supabase.from('listings').update({ is_published: next }).eq('id', id)
+    if (error) { toast.error('Could not update'); return }
+    setListings(ls => ls.map(l => l.id === id ? { ...l, is_published: next } as any : l))
+    toast.success(next ? 'Listing published' : 'Listing unpublished')
+  }
+
+  const deleteListing = async (id: string) => {
+    if (!confirm('Delete this listing permanently? Bookings history is kept but the listing is removed.')) return
+    await supabase.from('listing_images').delete().eq('listing_id', id)
+    const { error } = await supabase.from('listings').delete().eq('id', id)
+    if (error) { toast.error('Has bookings — unpublish it instead of deleting.'); return }
+    setListings(ls => ls.filter(l => l.id !== id))
+    toast.success('Listing deleted')
+  }
+
   const setupPayouts = async () => {
     setPayoutBusy(true)
     try {
@@ -83,6 +99,15 @@ export default function HostPage() {
   const listing = listings.find(l => l.id === selectedListing)
   const pendingRequests = bookings.filter(b => b.status === 'awaiting_approval')
 
+  type BGroup = { name: string; items: Listing[] }
+  const listingsByBuilding = listings.reduce<Record<string, BGroup>>((acc, l) => {
+    const key = l.building_id || 'none'
+    const grp = acc[key] || (acc[key] = { name: (l as any).buildings?.name || 'Your building', items: [] })
+    grp.items.push(l)
+    return acc
+  }, {})
+  const buildingGroups = Object.entries(listingsByBuilding) as [string, BGroup][]
+
   const totalEarnings = bookings
     .filter(b => b.status !== 'cancelled')
     .reduce((sum, b) => sum + b.total_price * (1 - PLATFORM_FEE_RATE), 0)
@@ -92,6 +117,7 @@ export default function HostPage() {
   const tabs: { key: typeof tab, label: string }[] = [
     { key: 'today', label: 'Today' },
     { key: 'requests', label: 'Requests' },
+    { key: 'listings', label: 'Listings' },
     { key: 'calendar', label: 'Calendar' },
     { key: 'earnings', label: 'Earnings' },
   ]
@@ -113,7 +139,7 @@ export default function HostPage() {
           <div className="mb-6">
             <select value={selectedListing || ''} onChange={e => { setSelectedListing(e.target.value); fetchBookings(e.target.value) }}
               className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 outline-none">
-              {listings.map(l => <option key={l.id} value={l.id}>{l.description || l.type}</option>)}
+              {listings.map(l => <option key={l.id} value={l.id}>{l.unit_name || l.description || l.type}</option>)}
             </select>
           </div>
         )}
@@ -195,6 +221,40 @@ export default function HostPage() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {tab === 'listings' && (
+              <div className="space-y-6">
+                {buildingGroups.map(([bid, grp]) => (
+                  <div key={bid} className="bg-white rounded-xl shadow overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-3 border-b bg-gray-50">
+                      <span className="font-semibold text-sm">{grp.name}</span>
+                      {bid !== 'none' && (
+                        <Link href={`/profile/place?building=${bid}`} className="text-xs font-medium text-indigo-700 hover:underline">Edit building</Link>
+                      )}
+                    </div>
+                    {grp.items.map(l => (
+                      <div key={l.id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
+                        <div className="min-w-0">
+                          <p className="font-medium text-sm truncate">{l.unit_name || l.type}</p>
+                          <p className="text-xs text-gray-400">{l.type} · ${Number(l.price).toFixed(0)}/day
+                            {(l as any).is_published === false && <span className="ml-2 text-amber-600">· Unpublished</span>}</p>
+                        </div>
+                        <div className="flex gap-2 shrink-0">
+                          <Link href={`/rooms?id=${l.id}`} className="text-xs font-medium border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">View</Link>
+                          <button onClick={() => togglePublish(l.id, (l as any).is_published === false)}
+                            className="text-xs font-medium border border-gray-300 text-gray-600 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+                            {(l as any).is_published === false ? 'Publish' : 'Unpublish'}
+                          </button>
+                          <button onClick={() => deleteListing(l.id)}
+                            className="text-xs font-medium border border-red-300 text-red-600 px-3 py-1.5 rounded-lg hover:bg-red-50">Delete</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {listings.length === 0 && <p className="text-center py-10 text-gray-400 text-sm">No listings yet.</p>}
               </div>
             )}
 

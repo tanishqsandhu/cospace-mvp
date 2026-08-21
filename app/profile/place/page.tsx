@@ -26,10 +26,12 @@ const UNIT_TYPES = [
 ]
 
 const AMENITIES = [
-  { key: 'wifi', label: 'WiFi' }, { key: 'air_conditioning', label: 'A/C' },
-  { key: 'workspace', label: 'Desks' }, { key: 'kitchen', label: 'Kitchen' },
-  { key: 'tv', label: 'TV / screen' }, { key: 'washer', label: 'Washer' },
-  { key: 'free_parking', label: 'Free parking' }, { key: 'paid_parking', label: 'Paid parking' },
+  { key: 'wifi', label: 'WiFi' }, { key: 'workspace', label: 'Desks' }, { key: 'kitchen', label: 'Kitchen' },
+  { key: 'tv', label: 'TV / screen' }, { key: 'coffee', label: 'Coffee' }, { key: 'access_24_7', label: '24/7 access' },
+  { key: 'self_checkin', label: 'Self check-in' }, { key: 'private_lock', label: 'Private lockable door' },
+  { key: 'window_view', label: 'Window view' }, { key: 'whiteboard', label: 'Whiteboard' },
+  { key: 'phone_booth', label: 'Phone booth' }, { key: 'free_parking', label: 'Free parking' },
+  { key: 'paid_parking', label: 'Paid parking' },
 ]
 
 type Img = { url: string; path: string }
@@ -51,8 +53,11 @@ const blankUnit = (over: Partial<Unit> = {}): Unit => ({
   key: (globalThis.crypto?.randomUUID?.() || String(Math.random())),
   unit_name: '', type: 'private office', price: '', description: '',
   opening_time: '09:00', closing_time: '18:00', auto_approve: true,
-  wifi: true, air_conditioning: true, workspace: true, kitchen: false,
+  wifi: true, air_conditioning: false, workspace: true, kitchen: false,
   tv: false, washer: false, free_parking: false, paid_parking: false,
+  coffee: false, access_24_7: false, self_checkin: false, private_lock: false,
+  window_view: false, whiteboard: false, phone_booth: false,
+  holiday_dates: [] as { startDate: string; endDate: string }[],
   images: [], expanded: true, ...over,
 })
 
@@ -72,8 +77,9 @@ export default function CreateBuildingPage() {
 
   const [building, setBuilding] = useState({
     id: '' as string, name: '', country: 'USA', address: '', address_etc: '',
-    city: '', state: '', zip_code: '', description: '',
+    city: '', state: '', zip_code: '', description: '', images: [] as Img[],
   })
+  const [buildingUploading, setBuildingUploading] = useState(false)
   const [units, setUnits] = useState<Unit[]>([blankUnit()])
 
   useEffect(() => {
@@ -91,8 +97,10 @@ export default function CreateBuildingPage() {
     if (b) setBuilding({
       id: b.id, name: b.name || '', country: b.country || 'USA', address: b.address || '',
       address_etc: b.address_etc || '', city: b.city || '', state: b.state || '', zip_code: b.zip_code || '',
-      description: b.description || '',
+      description: b.description || '', images: [],
     })
+    const { data: bimgs } = await supabase.from('building_images').select('*').eq('building_id', bid).order('position')
+    if (bimgs) setBuilding(prev => ({ ...prev, images: bimgs.map((im: any) => ({ url: im.url, path: im.storage_path })) }))
     const { data: ls } = await supabase
       .from('listings').select('*, listing_images(*)').eq('building_id', bid).order('created_at', { ascending: true })
     const us = (ls || []).map((listing: any) => blankUnit({
@@ -104,6 +112,10 @@ export default function CreateBuildingPage() {
       wifi: listing.wifi, air_conditioning: listing.air_conditioning, workspace: listing.workspace,
       kitchen: listing.kitchen, tv: listing.tv, washer: listing.washer,
       free_parking: listing.free_parking, paid_parking: listing.paid_parking,
+      coffee: listing.coffee, access_24_7: listing.access_24_7, self_checkin: listing.self_checkin,
+      private_lock: listing.private_lock, window_view: listing.window_view,
+      whiteboard: listing.whiteboard, phone_booth: listing.phone_booth,
+      holiday_dates: listing.holiday_dates || [],
       images: (listing.listing_images || []).sort((a: any, z: any) => a.position - z.position)
         .map((im: any) => ({ url: im.url, path: im.storage_path })),
       expanded: false,
@@ -124,7 +136,9 @@ export default function CreateBuildingPage() {
         opening_time: f.opening_time, closing_time: f.closing_time, auto_approve: f.auto_approve,
         wifi: f.wifi, air_conditioning: f.air_conditioning, workspace: f.workspace, kitchen: f.kitchen,
         tv: f.tv, washer: f.washer, free_parking: f.free_parking, paid_parking: f.paid_parking,
-        images: [...f.images], unit_name: '',
+        coffee: f.coffee, access_24_7: f.access_24_7, self_checkin: f.self_checkin, private_lock: f.private_lock,
+        window_view: f.window_view, whiteboard: f.whiteboard, phone_booth: f.phone_booth,
+        images: [], unit_name: '',
       })])
     } else {
       setUnits(us => [...us, blankUnit()])
@@ -151,6 +165,35 @@ export default function CreateBuildingPage() {
     setUploadingKey(null)
   }
 
+  const uploadBuildingImages = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || !files.length) return
+    setBuildingUploading(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { toast.error('Please sign in'); setBuildingUploading(false); return }
+    const added: Img[] = []
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      const path = `${user.id}/building/${Date.now()}-${i}-${file.name}`
+      const { error } = await supabase.storage.from('listing-images').upload(path, file)
+      if (!error) {
+        const { data: { publicUrl } } = supabase.storage.from('listing-images').getPublicUrl(path)
+        added.push({ url: publicUrl, path })
+      }
+    }
+    setBuilding(b => ({ ...b, images: [...(b.images || []), ...added] }))
+    setBuildingUploading(false)
+  }
+
+  const saveBuildingImages = async (buildingId: string, imgs: Img[]) => {
+    await supabase.from('building_images').delete().eq('building_id', buildingId)
+    for (let i = 0; i < imgs.length; i++) {
+      await supabase.from('building_images').insert({
+        building_id: buildingId, url: imgs[i].url, storage_path: imgs[i].path, position: i,
+      })
+    }
+  }
+
   const unitPayload = (u: Unit, host_id: string, building_id: string) => ({
     host_id, building_id, unit_name: u.unit_name || 'Unit',
     type: u.type, price: parseFloat(u.price) || 0,
@@ -159,6 +202,9 @@ export default function CreateBuildingPage() {
     wifi: u.wifi, tv: u.tv, kitchen: u.kitchen, washer: u.washer,
     free_parking: u.free_parking, paid_parking: u.paid_parking,
     air_conditioning: u.air_conditioning, workspace: u.workspace,
+    coffee: u.coffee, access_24_7: u.access_24_7, self_checkin: u.self_checkin,
+    private_lock: u.private_lock, window_view: u.window_view, whiteboard: u.whiteboard, phone_booth: u.phone_booth,
+    holiday_dates: u.holiday_dates || [],
     description: u.description, opening_time: u.opening_time, closing_time: u.closing_time,
     auto_approve: u.auto_approve, is_published: true, admin_approved: true,
   })
@@ -195,6 +241,8 @@ export default function CreateBuildingPage() {
       if (error || !nb) { toast.error('Could not create building'); setLoading(false); return }
       buildingId = nb.id
     }
+
+    await saveBuildingImages(buildingId!, building.images)
 
     if (editing) {
       for (const u of units) {
@@ -265,6 +313,22 @@ export default function CreateBuildingPage() {
                 placeholder="Shared amenities, vibe, neighborhood…"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 outline-none resize-none" />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Building photos <span className="text-gray-400 font-normal">(exterior, lobby, shared areas)</span></label>
+              <div className="flex flex-wrap gap-2">
+                {building.images.map((im, j) => (
+                  <div key={j} className="relative w-20 h-20">
+                    <img src={im.url} alt="" className="w-full h-full object-cover rounded-lg" />
+                    <button type="button" onClick={() => setBuilding(b => ({ ...b, images: b.images.filter((_, k) => k !== j) }))}
+                      className="absolute -top-1 -right-1 bg-black/60 text-white rounded-full w-5 h-5 text-xs">✕</button>
+                  </div>
+                ))}
+                <label className="w-20 h-20 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center cursor-pointer hover:border-indigo-400 text-xs text-gray-400 text-center">
+                  {buildingUploading ? '…' : '+ Add'}
+                  <input type="file" multiple accept="image/*" className="hidden" disabled={buildingUploading} onChange={uploadBuildingImages} />
+                </label>
+              </div>
+            </div>
           </div>
         )}
 
@@ -332,6 +396,26 @@ export default function CreateBuildingPage() {
                           </button>
                         ))}
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Blocked / unavailable dates</label>
+                      <p className="text-xs text-gray-400 mb-2">Guests can&apos;t book these ranges (holidays, closures). Days with active bookings are blocked automatically.</p>
+                      <div className="space-y-2">
+                        {(u.holiday_dates || []).map((h: any, hi: number) => (
+                          <div key={hi} className="flex items-center gap-2">
+                            <input type="date" value={h.startDate} onChange={e => patchUnit(u.key, { holiday_dates: u.holiday_dates.map((x: any, k: number) => k === hi ? { ...x, startDate: e.target.value } : x) })}
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none" />
+                            <span className="text-gray-400 text-sm">to</span>
+                            <input type="date" value={h.endDate} onChange={e => patchUnit(u.key, { holiday_dates: u.holiday_dates.map((x: any, k: number) => k === hi ? { ...x, endDate: e.target.value } : x) })}
+                              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm outline-none" />
+                            <button type="button" onClick={() => patchUnit(u.key, { holiday_dates: u.holiday_dates.filter((_: any, k: number) => k !== hi) })}
+                              className="text-red-500 text-xs hover:underline">Remove</button>
+                          </div>
+                        ))}
+                      </div>
+                      <button type="button" onClick={() => patchUnit(u.key, { holiday_dates: [...(u.holiday_dates || []), { startDate: '', endDate: '' }] })}
+                        className="mt-2 text-sm text-indigo-700 font-medium hover:underline">+ Add blocked range</button>
                     </div>
 
                     <div>

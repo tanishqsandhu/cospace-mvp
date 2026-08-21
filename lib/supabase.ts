@@ -26,6 +26,7 @@ export interface Profile {
   payout_name: string | null
   stripe_account_id: string | null
   payouts_enabled: boolean
+  account_type: string | null
   is_email_verified: boolean
   profile_completed: boolean
   created_at: string
@@ -82,6 +83,13 @@ export interface Listing {
   paid_parking: boolean
   air_conditioning: boolean
   workspace: boolean
+  coffee: boolean
+  access_24_7: boolean
+  self_checkin: boolean
+  private_lock: boolean
+  window_view: boolean
+  whiteboard: boolean
+  phone_booth: boolean
   description: string | null
   price: number | null
   opening_time: string | null

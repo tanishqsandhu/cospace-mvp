@@ -141,11 +141,13 @@ export default function RoomsPage() {
   )
 
   const amenities = [
-    { key: 'wifi', label: 'WiFi' }, { key: 'tv', label: 'TV' },
-    { key: 'kitchen', label: 'Kitchen' }, { key: 'washer', label: 'Washer' },
-    { key: 'free_parking', label: 'Free parking' }, { key: 'paid_parking', label: 'Paid parking' },
-    { key: 'air_conditioning', label: 'Air conditioning' }, { key: 'workspace', label: 'Dedicated workspace' },
-  ]
+  { key: 'wifi', label: 'WiFi' }, { key: 'workspace', label: 'Desks' }, { key: 'kitchen', label: 'Kitchen' },
+  { key: 'tv', label: 'TV / screen' }, { key: 'coffee', label: 'Coffee' }, { key: 'access_24_7', label: '24/7 access' },
+  { key: 'self_checkin', label: 'Self check-in' }, { key: 'private_lock', label: 'Private lockable door' },
+  { key: 'window_view', label: 'Window view' }, { key: 'whiteboard', label: 'Whiteboard' },
+  { key: 'phone_booth', label: 'Phone booth' }, { key: 'free_parking', label: 'Free parking' },
+  { key: 'paid_parking', label: 'Paid parking' },
+]
 
   return (
     <div className="min-h-screen bg-gray-50"><Header />

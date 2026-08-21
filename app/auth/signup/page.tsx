@@ -10,6 +10,7 @@ export default function SignupPage() {
   const [password, setPassword] = useState('')
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
+  const [accountType, setAccountType] = useState<'customer' | 'host'>('customer')
   const [loading, setLoading] = useState(false)
   const supabase = createClient()
   const router = useRouter()
@@ -19,7 +20,7 @@ export default function SignupPage() {
     setLoading(true)
     const { error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { first_name: firstName, last_name: lastName } }
+      options: { data: { first_name: firstName, last_name: lastName, account_type: accountType, is_host: accountType === 'host' } }
     })
     if (error) {
       toast.error(error.message)
@@ -41,6 +42,22 @@ export default function SignupPage() {
         </Link>
         <h1 className="text-2xl font-bold text-center mb-2">Create your account</h1>
         <form onSubmit={handleSignup} className="space-y-4 mt-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">I'm signing up to</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button type="button" onClick={() => setAccountType('customer')}
+                className={`rounded-lg border px-3 py-3 text-sm text-left ${accountType === 'customer' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-300 text-gray-600'}`}>
+                <span className="font-semibold block">Book spaces</span>
+                <span className="text-xs text-gray-400">Find and reserve workspaces</span>
+              </button>
+              <button type="button" onClick={() => setAccountType('host')}
+                className={`rounded-lg border px-3 py-3 text-sm text-left ${accountType === 'host' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-gray-300 text-gray-600'}`}>
+                <span className="font-semibold block">Host spaces</span>
+                <span className="text-xs text-gray-400">List and manage your spaces</span>
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">You can switch this anytime in Settings.</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">First name</label>

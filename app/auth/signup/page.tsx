@@ -20,7 +20,10 @@ export default function SignupPage() {
     setLoading(true)
     const { error } = await supabase.auth.signUp({
       email, password,
-      options: { data: { first_name: firstName, last_name: lastName, account_type: accountType, is_host: accountType === 'host' } }
+      options: {
+        data: { first_name: firstName, last_name: lastName, account_type: accountType, is_host: accountType === 'host' },
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      }
     })
     if (error) {
       toast.error(error.message)

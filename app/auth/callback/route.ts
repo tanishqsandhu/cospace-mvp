@@ -12,7 +12,9 @@ export async function GET(request: Request) {
   const code = searchParams.get('code')
   const tokenHash = searchParams.get('token_hash')
   const type = searchParams.get('type') as any
-  const next = searchParams.get('next') || '/'
+  let next = searchParams.get('next') || '/'
+  // Password recovery must land on the set-new-password page.
+  if (type === 'recovery' && (next === '/' || !next)) next = '/auth/update-password'
 
   const supabase = createServerSupabase()
   let ok = false

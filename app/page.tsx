@@ -496,10 +496,13 @@ export default function HomePage() {
         m.on('click', () => { if (!isB) window.location.href = href })
         markersRef.current[it.id] = m
       })
-      if (pts.length > 1) {
-        map.fitBounds(pts.map((p) => p.c), { padding: [60, 60], maxZoom: 14 })
-      } else if (searchCenter) {
+      if (searchCenter) {
+        // An explicit place search always wins over auto-fitting existing pins.
         map.setView(searchCenter, 12)
+      } else if (pts.length > 1) {
+        map.fitBounds(pts.map((p) => p.c), { padding: [60, 60], maxZoom: 14 })
+      } else if (pts.length === 1) {
+        map.setView(pts[0].c, 13)
       }
       setTimeout(() => { try { map.invalidateSize() } catch {} }, 120)
     })

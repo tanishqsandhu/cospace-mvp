@@ -233,6 +233,29 @@ function BuildingCard({ item, cover, highlighted, refCb, onEnter, onLeave }: {
   )
 }
 
+function PriceRange({ ceil, min, max, onChange }: { ceil: number; min: number; max: number; onChange: (lo: number, hi: number) => void }) {
+  const step = 10
+  const pct = (v: number) => (ceil ? (v / ceil) * 100 : 0)
+  const active = min > 0 || max < ceil
+  return (
+    <div className="flex items-center gap-3">
+      <span className="text-sm text-gray-600 whitespace-nowrap min-w-[86px]">
+        {active ? `$${min} – $${max >= ceil ? ceil + '+' : max}` : 'Any price'}
+      </span>
+      <div className="relative h-5 w-36">
+        <div className="absolute top-1/2 -translate-y-1/2 h-1 w-full bg-gray-200 rounded-full" />
+        <div className="absolute top-1/2 -translate-y-1/2 h-1 bg-indigo-500 rounded-full" style={{ left: `${pct(min)}%`, right: `${100 - pct(max)}%` }} />
+        <input type="range" min={0} max={ceil} step={step} value={min} aria-label="Minimum price"
+          onChange={(e) => onChange(Math.min(Number(e.target.value), max - step), max)}
+          className="cs-range absolute left-0 top-0 h-5 w-full" />
+        <input type="range" min={0} max={ceil} step={step} value={max} aria-label="Maximum price"
+          onChange={(e) => onChange(min, Math.max(Number(e.target.value), min + step))}
+          className="cs-range absolute left-0 top-0 h-5 w-full" />
+      </div>
+    </div>
+  )
+}
+
 export default function HomePage() {
   const [listings, setListings] = useState<Listing[]>([])
   const [search, setSearch] = useState('')
@@ -245,7 +268,8 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState('recommended')
   const [typeFilter, setTypeFilter] = useState<Set<string>>(new Set())
   const [amenityFilter, setAmenityFilter] = useState<Set<string>>(new Set())
-  const [maxPrice, setMaxPrice] = useState(0)
+  const [priceMin, setPriceMin] = useState(0)
+  const [priceMax, setPriceMax] = useState<number | null>(null)
   const [geoVersion, setGeoVersion] = useState(0)
   const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null)
   const [areaBounds, setAreaBounds] = useState<[number, number, number, number] | null>(null)
@@ -268,14 +292,15 @@ export default function HomePage() {
     const sp = new URLSearchParams(window.location.search)
     const q = sp.get('q') || ''
     const typeCsv = sp.get('type'); const amCsv = sp.get('am')
-    const price = sp.get('price'); const sort = sp.get('sort'); const v = sp.get('view')
+    const pmin = sp.get('pmin'); const pmax = sp.get('pmax'); const sort = sp.get('sort'); const v = sp.get('view')
     if (q) { setSearch(q); setActiveQuery(q); setHasSearched(true); geocode(q).then((c) => setSearchCenter(c)) }
     if (typeCsv) setTypeFilter(new Set(typeCsv.split(',').filter(Boolean)))
     if (amCsv) setAmenityFilter(new Set(amCsv.split(',').filter(Boolean)))
-    if (price) setMaxPrice(Number(price) || 0)
+    if (pmin) setPriceMin(Number(pmin) || 0)
+    if (pmax) setPriceMax(Number(pmax))
     if (sort) setSortBy(sort)
     if (v === 'list' || v === 'map') setView(v)
-    if (typeCsv || amCsv) setHasSearched(true)
+    if (typeCsv || amCsv || pmin || pmax) setHasSearched(true)
     didRestore.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -287,12 +312,13 @@ export default function HomePage() {
     if (activeQuery) sp.set('q', activeQuery)
     if (typeFilter.size) sp.set('type', Array.from(typeFilter).join(','))
     if (amenityFilter.size) sp.set('am', Array.from(amenityFilter).join(','))
-    if (maxPrice) sp.set('price', String(maxPrice))
+    if (priceMin) sp.set('pmin', String(priceMin))
+    if (priceMax !== null) sp.set('pmax', String(priceMax))
     if (sortBy && sortBy !== 'recommended') sp.set('sort', sortBy)
     if (view !== 'map') sp.set('view', view)
     const qs = sp.toString()
     window.history.replaceState(null, '', qs ? `/?${qs}` : '/')
-  }, [activeQuery, typeFilter, amenityFilter, maxPrice, sortBy, view])
+  }, [activeQuery, typeFilter, amenityFilter, priceMin, priceMax, sortBy, view])
 
   const cancelPopup = () => {
     if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null }
@@ -381,9 +407,10 @@ export default function HomePage() {
     let arr = listings.slice()
     if (typeFilter.size) arr = arr.filter((l) => typeFilter.has(l.type))
     if (amenityFilter.size) arr = arr.filter((l) => Array.from(amenityFilter).every((k) => (l as any)[k]))
-    if (maxPrice) arr = arr.filter((l) => (l.price ?? 0) <= maxPrice)
+    if (priceMin) arr = arr.filter((l) => (l.price ?? 0) >= priceMin)
+    if (priceMax !== null) arr = arr.filter((l) => (l.price ?? 0) <= priceMax)
     return arr
-  }, [listings, typeFilter, amenityFilter, maxPrice])
+  }, [listings, typeFilter, amenityFilter, priceMin, priceMax])
 
   const items = useMemo(() => buildItems(filtered, sortBy), [filtered, sortBy])
 
@@ -576,6 +603,8 @@ export default function HomePage() {
   const withCoords = displayedItems.filter((it) => resolvedCoords(it))
   const buildingCount = displayedItems.filter((it) => it.kind === 'building').length
 
+  const priceCeil = Math.max(100, Math.ceil(Math.max(0, ...listings.map((l) => l.price ?? 0)) / 50) * 50)
+
   const filterBar = (
     <div className="border-b bg-white sticky top-0 z-[500]">
       <div className="max-w-[1600px] mx-auto px-5 py-3 flex flex-wrap items-center gap-2">
@@ -585,13 +614,10 @@ export default function HomePage() {
           <option value="price_desc">Price: high to low</option>
           <option value="rating_desc">Top rated</option>
         </select>
-        <select value={maxPrice} onChange={(e) => setMaxPrice(Number(e.target.value))} className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white">
-          <option value={0}>Any price</option>
-          <option value={50}>Up to $50</option>
-          <option value={100}>Up to $100</option>
-          <option value={250}>Up to $250</option>
-          <option value={500}>Up to $500</option>
-        </select>
+        <div className="border border-gray-300 rounded-lg px-3 py-2 bg-white">
+          <PriceRange ceil={priceCeil} min={priceMin} max={priceMax ?? priceCeil}
+            onChange={(lo, hi) => { setPriceMin(lo); setPriceMax(hi >= priceCeil ? null : hi) }} />
+        </div>
         {Object.keys(TYPE_LABELS).slice(0, 4).map((t) => (
           <button
             key={t}
@@ -661,6 +687,11 @@ export default function HomePage() {
         .cs-brow-meta { font-size:11px; color:#6b7280; }
         .cs-bpop-foot { display:block; text-align:center; padding:8px; font-size:12px; font-weight:600; color:#4338ca; text-decoration:none; border-top:1px solid #f1f1f4; }
         .cs-bpop-foot:hover { background:#f6f6fc; }
+        .cs-range { -webkit-appearance:none; appearance:none; background:transparent; pointer-events:none; margin:0; }
+        .cs-range::-webkit-slider-runnable-track { background:transparent; height:20px; }
+        .cs-range::-moz-range-track { background:transparent; height:20px; }
+        .cs-range::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; pointer-events:auto; width:16px; height:16px; margin-top:2px; border-radius:9999px; background:#fff; border:2px solid #4f46e5; box-shadow:0 1px 3px rgba(0,0,0,.3); cursor:pointer; }
+        .cs-range::-moz-range-thumb { pointer-events:auto; width:16px; height:16px; border-radius:9999px; background:#fff; border:2px solid #4f46e5; box-shadow:0 1px 3px rgba(0,0,0,.3); cursor:pointer; }
       `}</style>
 
       {/* Hero / search */}

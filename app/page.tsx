@@ -354,18 +354,35 @@ export default function HomePage() {
 
   const items = useMemo(() => buildItems(filtered, sortBy), [filtered, sortBy])
 
-  // Geocode any listings that aren't in the hard-coded table
+  // Geocode any listings that aren't in the hard-coded table.
+  // Buildings go through the server route, which geocodes AND persists lat/lng
+  // back to the building (so it self-heals permanently after the first view).
   useEffect(() => {
     let cancelled = false
     const missing = items.filter((it) => !itemCoords(it) && locString(it) && !geoCache.has(locString(it).trim().toLowerCase()))
     if (!missing.length) return
     ;(async () => {
+      let resolvedAny = false
       for (const it of missing) {
         if (cancelled) return
-        await geocode(locString(it))
-        await new Promise((r) => setTimeout(r, 1100))
+        const key = locString(it).trim().toLowerCase()
+        const bid = it.kind === 'building' ? (it.building as any)?.id : null
+        let hit: [number, number] | null = null
+        if (bid) {
+          try {
+            const r = await fetch('/api/geocode', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ buildingId: bid }),
+            })
+            if (r.ok) { const j = await r.json(); if (typeof j.lat === 'number') hit = [j.lat, j.lng] }
+          } catch {}
+        }
+        if (!hit) hit = await geocode(locString(it))
+        geoCache.set(key, hit)
+        if (hit) resolvedAny = true
+        await new Promise((r) => setTimeout(r, 300))
       }
-      if (!cancelled) setGeoVersion((v) => v + 1)
+      if (!cancelled && resolvedAny) setGeoVersion((v) => v + 1)
     })()
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps

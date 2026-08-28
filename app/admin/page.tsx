@@ -156,7 +156,7 @@ export default function AdminPage() {
               <tbody className="divide-y">
                 {listings.map(l => (
                   <tr key={l.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium">{l.unit_name || l.description || l.type}</td>
+                    <td className="px-4 py-3 font-medium"><Link href={`/rooms?id=${l.id}`} target="_blank" className="text-indigo-600 hover:underline">{l.unit_name || l.description || l.type}</Link></td>
                     <td className="px-4 py-3 text-gray-500">{name(l.profiles)}</td>
                     <td className="px-4 py-3 text-gray-500">{l.city || '—'}</td>
                     <td className="px-4 py-3">{fmt(l.price)}</td>

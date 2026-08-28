@@ -260,6 +260,39 @@ export default function HomePage() {
   const markersRef = useRef<Record<string, any>>({})
   const cardRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const hoverTimerRef = useRef<any>(null)
+  const didRestore = useRef(false)
+
+  // Restore search criteria from the URL on mount (so returning here keeps them)
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const sp = new URLSearchParams(window.location.search)
+    const q = sp.get('q') || ''
+    const typeCsv = sp.get('type'); const amCsv = sp.get('am')
+    const price = sp.get('price'); const sort = sp.get('sort'); const v = sp.get('view')
+    if (q) { setSearch(q); setActiveQuery(q); setHasSearched(true); geocode(q).then((c) => setSearchCenter(c)) }
+    if (typeCsv) setTypeFilter(new Set(typeCsv.split(',').filter(Boolean)))
+    if (amCsv) setAmenityFilter(new Set(amCsv.split(',').filter(Boolean)))
+    if (price) setMaxPrice(Number(price) || 0)
+    if (sort) setSortBy(sort)
+    if (v === 'list' || v === 'map') setView(v)
+    if (typeCsv || amCsv) setHasSearched(true)
+    didRestore.current = true
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Keep the URL in sync with the current search criteria
+  useEffect(() => {
+    if (typeof window === 'undefined' || !didRestore.current) return
+    const sp = new URLSearchParams()
+    if (activeQuery) sp.set('q', activeQuery)
+    if (typeFilter.size) sp.set('type', Array.from(typeFilter).join(','))
+    if (amenityFilter.size) sp.set('am', Array.from(amenityFilter).join(','))
+    if (maxPrice) sp.set('price', String(maxPrice))
+    if (sortBy && sortBy !== 'recommended') sp.set('sort', sortBy)
+    if (view !== 'map') sp.set('view', view)
+    const qs = sp.toString()
+    window.history.replaceState(null, '', qs ? `/?${qs}` : '/')
+  }, [activeQuery, typeFilter, amenityFilter, maxPrice, sortBy, view])
 
   const cancelPopup = () => {
     if (hoverTimerRef.current) { clearTimeout(hoverTimerRef.current); hoverTimerRef.current = null }

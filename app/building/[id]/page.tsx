@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import { createClient, Listing } from '@/lib/supabase'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import Header from '@/components/layout/Header'
 
@@ -46,6 +46,7 @@ function loadLeaflet(): Promise<any> {
 
 export default function BuildingPage() {
   const params = useParams()
+  const router = useRouter()
   const id = (params?.id as string) || ''
   const supabase = createClient()
   const [building, setBuilding] = useState<any>(null)
@@ -121,7 +122,7 @@ export default function BuildingPage() {
   return (
     <div className="min-h-screen bg-gray-50"><Header />
       <div className="max-w-6xl mx-auto px-4 py-8">
-        <Link href="/" className="text-sm text-indigo-600 hover:underline">← Back to search</Link>
+        <button onClick={() => { if (typeof window !== 'undefined' && window.history.length > 1) router.back(); else router.push('/') }} className="text-sm text-indigo-600 hover:underline">← Back to search</button>
 
         <div className="mt-3">
           <h1 className="text-3xl font-extrabold">{building.name || 'Building'}</h1>

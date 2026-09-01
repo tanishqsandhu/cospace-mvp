@@ -186,16 +186,18 @@ export default function RoomsPage() {
               )}
             </div>
 
-            <div className="border-b pb-6">
-              <h2 className="text-xl font-bold mb-3">What this space offers</h2>
-              <div className="grid grid-cols-2 gap-2">
-                {amenities.map(({ key, label }) => (
-                  <div key={key} className={`flex items-center gap-2 text-sm ${!(listing as any)[key] ? 'line-through text-gray-300' : 'text-gray-700'}`}>
-                    <span>{(listing as any)[key] ? '✓' : '✕'}</span> {label}
-                  </div>
-                ))}
+            {amenities.some(({ key }) => (listing as any)[key]) && (
+              <div className="border-b pb-6">
+                <h2 className="text-xl font-bold mb-3">What this space offers</h2>
+                <div className="grid grid-cols-2 gap-2">
+                  {amenities.filter(({ key }) => (listing as any)[key]).map(({ key, label }) => (
+                    <div key={key} className="flex items-center gap-2 text-sm text-gray-700">
+                      <span>✓</span> {label}
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             {listing.holiday_dates?.length > 0 && (
               <div className="border-b pb-6">

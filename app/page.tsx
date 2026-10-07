@@ -281,6 +281,7 @@ export default function HomePage() {
 
   const mapElRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<any>(null)
+  const roRef = useRef<any>(null)
   const markersRef = useRef<Record<string, any>>({})
   const cardRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const hoverTimerRef = useRef<any>(null)
@@ -523,8 +524,7 @@ export default function HomePage() {
           html: isB
             ? `<div class="cs-pin cs-pin-b">$${price}${more ? '+' : ''}<span class="cs-pin-count">${it.units.length}</span></div>`
             : `<div class="cs-pin">$${price}</div>`,
-          iconSize: [50, 26],
-          iconAnchor: [25, 13],
+          iconSize: [0, 0],
         })
         const m = L.marker(c, { icon }).addTo(map)
         let popHtml: string
@@ -582,10 +582,18 @@ export default function HomePage() {
         map.setView(pts[0].c, 13)
       }
       setTimeout(() => { try { map.invalidateSize() } catch {} }, 120)
+      // Keep the map (and pin positions) correct when the window/container resizes
+      try {
+        roRef.current?.disconnect?.()
+        const ro = new ResizeObserver(() => { requestAnimationFrame(() => { try { map.invalidateSize() } catch {} }) })
+        if (mapElRef.current) ro.observe(mapElRef.current)
+        roRef.current = ro
+      } catch {}
     })
     return () => {
       cancelled = true
       cancelPopup()
+      if (roRef.current) { try { roRef.current.disconnect() } catch {}; roRef.current = null }
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
     }
   }, [hasSearched, view, items, geoVersion, searchCenter])
@@ -659,8 +667,8 @@ export default function HomePage() {
       <style>{`
         .cs-pin { background:#fff; border:1.5px solid #4f46e5; color:#4f46e5; font-weight:700;
           font-size:12px; line-height:1; padding:5px 9px; border-radius:9999px;
-          box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:all .12s; }
-        .cs-pin-active { background:#4f46e5; color:#fff; transform:scale(1.12); }
+          box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:transform .12s, background .12s, color .12s; transform:translate(-50%,-50%); }
+        .cs-pin-active { background:#4f46e5; color:#fff; transform:translate(-50%,-50%) scale(1.12); z-index:1000; }
         .cs-pin { position: relative; }
         .cs-pin-b { border-color:#4338ca; }
         .cs-pin-count { position:absolute; top:-8px; right:-9px; background:#4f46e5; color:#fff; border:1.5px solid #fff; border-radius:9999px; min-width:17px; height:17px; font-size:10px; line-height:15px; text-align:center; padding:0 3px; box-shadow:0 1px 3px rgba(0,0,0,.3); }

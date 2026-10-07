@@ -552,7 +552,7 @@ export default function HomePage() {
         const icon = L.divIcon({
           className: 'cs-pin-wrap',
           html: isB
-            ? `<div class="cs-pin cs-pin-b">$${price}${more ? '+' : ''}<span class="cs-pin-count">${it.units.length}</span></div>`
+            ? `<div class="cs-pin cs-pin-b">$${price}${more ? '+' : ''}${it.units.length > 1 ? `<span class="cs-pin-count">${it.units.length}</span>` : ''}</div>`
             : `<div class="cs-pin">$${price}</div>`,
           iconSize: [0, 0],
         })
@@ -695,12 +695,15 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
       <style>{`
-        .cs-pin { background:#fff; border:1.5px solid #4f46e5; color:#4f46e5; font-weight:700;
+        .cs-pin { position:relative; background:#fff; border:1.5px solid #4f46e5; color:#4f46e5; font-weight:700;
           font-size:12px; line-height:1; padding:5px 9px; border-radius:9999px;
-          box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:transform .12s, background .12s, color .12s; transform:translate(-50%,-50%); }
-        .cs-pin-active { background:#4f46e5; color:#fff; transform:translate(-50%,-50%) scale(1.12); z-index:1000; }
-        .cs-pin { position: relative; }
+          box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:transform .12s, background .12s, color .12s;
+          transform:translate(-50%, calc(-100% - 5px)); }
+        .cs-pin::after { content:''; position:absolute; left:50%; bottom:-4px; width:8px; height:8px; background:inherit;
+          border-right:1.5px solid #4f46e5; border-bottom:1.5px solid #4f46e5; transform:translateX(-50%) rotate(45deg); }
+        .cs-pin-active { background:#4f46e5; color:#fff; transform:translate(-50%, calc(-100% - 5px)) scale(1.12); z-index:1000; }
         .cs-pin-b { border-color:#4338ca; }
+        .cs-pin-b::after { border-right-color:#4338ca; border-bottom-color:#4338ca; }
         .cs-pin-count { position:absolute; top:-8px; right:-9px; background:#4f46e5; color:#fff; border:1.5px solid #fff; border-radius:9999px; min-width:17px; height:17px; font-size:10px; line-height:15px; text-align:center; padding:0 3px; box-shadow:0 1px 3px rgba(0,0,0,.3); }
         .leaflet-container { font: inherit; }
         .cs-popup .leaflet-popup-content-wrapper { padding:0; overflow:hidden; border-radius:12px; box-shadow:0 4px 16px rgba(0,0,0,.18); }

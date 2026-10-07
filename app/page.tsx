@@ -273,6 +273,7 @@ export default function HomePage() {
   const [geoVersion, setGeoVersion] = useState(0)
   const [searchCenter, setSearchCenter] = useState<[number, number] | null>(null)
   const [areaBounds, setAreaBounds] = useState<[number, number, number, number] | null>(null)
+  const [isWide, setIsWide] = useState<boolean>(() => typeof window !== 'undefined' ? window.innerWidth >= 1024 : true)
   const [suggests, setSuggests] = useState<{ label: string; lat: number; lng: number }[]>([])
   const [showSug, setShowSug] = useState(false)
   const sugTimer = useRef<any>(null)
@@ -286,6 +287,14 @@ export default function HomePage() {
   const cardRefs = useRef<Record<string, HTMLAnchorElement | null>>({})
   const hoverTimerRef = useRef<any>(null)
   const didRestore = useRef(false)
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const onResize = () => setIsWide(window.innerWidth >= 1024)
+    onResize()
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Restore search criteria from the URL on mount (so returning here keeps them)
   useEffect(() => {
@@ -451,13 +460,13 @@ export default function HomePage() {
 
   // Items shown in the list = those inside the current map viewport (Zillow-style)
   const displayedItems = useMemo(() => {
-    if (!areaBounds) return items
+    if (!areaBounds || !isWide) return items
     const [s, w, n, e] = areaBounds
     return items.filter((it) => {
       const c = resolvedCoords(it)
       return c && c[0] >= s && c[0] <= n && c[1] >= w && c[1] <= e
     })
-  }, [items, areaBounds, geoVersion])
+  }, [items, areaBounds, geoVersion, isWide])
   const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
 
   const renderCard = (it: Item, withRef = false) => {
@@ -474,7 +483,7 @@ export default function HomePage() {
 
   // Build / rebuild the map (map view only) when results change
   useEffect(() => {
-    if (!hasSearched || view !== 'map') return
+    if (!hasSearched || view !== 'map' || !isWide) return
     let cancelled = false
     loadLeaflet().then((L) => {
       if (cancelled || !L || !mapElRef.current) return
@@ -604,7 +613,7 @@ export default function HomePage() {
       if (roRef.current) { try { roRef.current.disconnect() } catch {}; roRef.current = null }
       if (mapRef.current) { mapRef.current.remove(); mapRef.current = null }
     }
-  }, [hasSearched, view, items, geoVersion, searchCenter])
+  }, [hasSearched, view, items, geoVersion, searchCenter, isWide])
 
   // Highlight markers when hoveredId changes (no panning)
   useEffect(() => {

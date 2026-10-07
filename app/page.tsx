@@ -695,7 +695,8 @@ export default function HomePage() {
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header />
       <style>{`
-        .cs-pin { position:relative; background:#fff; border:1.5px solid #4f46e5; color:#4f46e5; font-weight:700;
+        .cs-pin { position:relative; display:inline-block; width:max-content; text-align:center;
+          background:#fff; border:1.5px solid #4f46e5; color:#4f46e5; font-weight:700;
           font-size:12px; line-height:1; padding:5px 9px; border-radius:9999px;
           box-shadow:0 1px 4px rgba(0,0,0,.25); white-space:nowrap; cursor:pointer; transition:transform .12s, background .12s, color .12s;
           transform:translate(-50%, calc(-100% - 5px)); }

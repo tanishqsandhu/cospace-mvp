@@ -460,13 +460,26 @@ export default function HomePage() {
 
   // Items shown in the list = those inside the current map viewport (Zillow-style)
   const displayedItems = useMemo(() => {
-    if (!areaBounds || !isWide) return items
-    const [s, w, n, e] = areaBounds
-    return items.filter((it) => {
-      const c = resolvedCoords(it)
-      return c && c[0] >= s && c[0] <= n && c[1] >= w && c[1] <= e
-    })
-  }, [items, areaBounds, geoVersion, isWide])
+    // Map visible: filter to the map's viewport (Zillow-style pan-to-search).
+    if (areaBounds && isWide && view === 'map') {
+      const [s, w, n, e] = areaBounds
+      return items.filter((it) => {
+        const c = resolvedCoords(it)
+        return c && c[0] >= s && c[0] <= n && c[1] >= w && c[1] <= e
+      })
+    }
+    // No map (mobile / list view): if a place was searched, filter by distance to it
+    // (~0.6deg ≈ metro area), so results match the searched city everywhere.
+    if (searchCenter) {
+      const [clat, clng] = searchCenter
+      const R = 0.6
+      return items.filter((it) => {
+        const c = resolvedCoords(it)
+        return c && Math.abs(c[0] - clat) <= R && Math.abs(c[1] - clng) <= R
+      })
+    }
+    return items
+  }, [items, areaBounds, geoVersion, isWide, view, searchCenter])
   const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
 
   const renderCard = (it: Item, withRef = false) => {

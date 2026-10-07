@@ -90,7 +90,12 @@ export default function BuildingPage() {
       if (mapRef.current || (el as any)._leaflet_id) return
       const map = L.map(el, { scrollWheelZoom: false }).setView(c, 14)
       mapRef.current = map
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
+      const MBX = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+      if (MBX) {
+        L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${MBX}`, { tileSize: 512, zoomOffset: -1, maxZoom: 20, attribution: '&copy; Mapbox &copy; OpenStreetMap' }).addTo(map)
+      } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap contributors', maxZoom: 19 }).addTo(map)
+      }
       const icon = L.divIcon({ className: '', html: '<div style="width:18px;height:18px;background:#4f46e5;border:3px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', iconSize: [18, 18], iconAnchor: [9, 9] })
       L.marker(c, { icon }).addTo(map)
       setTimeout(() => { try { map.invalidateSize() } catch {} }, 200)

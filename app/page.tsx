@@ -504,10 +504,18 @@ export default function HomePage() {
         const b = map.getBounds()
         setAreaBounds([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])
       })
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors',
-        maxZoom: 19,
-      }).addTo(map)
+      const MBX = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+      if (MBX) {
+        L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${MBX}`, {
+          tileSize: 512, zoomOffset: -1, maxZoom: 20,
+          attribution: '&copy; Mapbox &copy; OpenStreetMap',
+        }).addTo(map)
+      } else {
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; OpenStreetMap contributors',
+          maxZoom: 19,
+        }).addTo(map)
+      }
       markersRef.current = {}
       pts.forEach(({ it, c }) => {
         const isB = it.kind === 'building'

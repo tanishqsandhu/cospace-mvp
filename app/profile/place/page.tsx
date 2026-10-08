@@ -9,6 +9,15 @@ export const dynamic = 'force-dynamic'
 
 async function geocodeAddress(q: string): Promise<[number, number] | null> {
   if (!q.trim()) return null
+  const tok = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
+  if (tok) {
+    try {
+      const res = await fetch(`https://api.mapbox.com/search/geocode/v6/forward?limit=1&country=us&q=${encodeURIComponent(q)}&access_token=${tok}`)
+      const json = await res.json()
+      const c = json?.features?.[0]?.geometry?.coordinates
+      if (Array.isArray(c) && c.length >= 2) return [c[1], c[0]]
+    } catch {}
+  }
   try {
     const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(q)}`)
     const arr = await res.json()

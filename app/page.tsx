@@ -448,16 +448,8 @@ export default function HomePage() {
 
   // Items shown in the list = those inside the current map viewport (Zillow-style)
   const displayedItems = useMemo(() => {
-    // Map visible: filter to the map's viewport (Zillow-style pan-to-search).
-    if (areaBounds && isWide && view === 'map') {
-      const [s, w, n, e] = areaBounds
-      return items.filter((it) => {
-        const c = resolvedCoords(it)
-        return c && c[0] >= s && c[0] <= n && c[1] >= w && c[1] <= e
-      })
-    }
-    // No map (mobile / list view): if a place was searched, filter by distance to it
-    // (~0.6deg ≈ metro area), so results match the searched city everywhere.
+    // Results are driven by the searched location (~0.6deg ≈ metro area) and stay
+    // stable while you pan/zoom the map — the map explores, it doesn't re-filter.
     if (searchCenter) {
       const [clat, clng] = searchCenter
       const R = 0.6
@@ -467,7 +459,7 @@ export default function HomePage() {
       })
     }
     return items
-  }, [items, areaBounds, geoVersion, isWide, view, searchCenter])
+  }, [items, geoVersion, searchCenter])
   const defaultItems = useMemo(() => buildItems(listings, 'recommended'), [listings])
 
   const renderCard = (it: Item, withRef = false) => {
@@ -492,28 +484,9 @@ export default function HomePage() {
       const pts = items
         .map((it) => ({ it, c: resolvedCoords(it) }))
         .filter((x) => x.c) as { it: Item; c: [number, number] }[]
-      // Spread pins that resolve to the same coordinate so they don't overlap
-      const groups = new Map<string, { it: Item; c: [number, number] }[]>()
-      pts.forEach((p) => {
-        const k = `${p.c[0].toFixed(4)},${p.c[1].toFixed(4)}`
-        const a = groups.get(k) || []; a.push(p); groups.set(k, a)
-      })
-      groups.forEach((arr) => {
-        if (arr.length > 1) {
-          const R = 0.0016 + arr.length * 0.00012
-          arr.forEach((p, i) => {
-            const ang = (2 * Math.PI * i) / arr.length
-            p.c = [p.c[0] + R * Math.cos(ang), p.c[1] + R * Math.sin(ang)]
-          })
-        }
-      })
       const center: [number, number] = searchCenter || (pts.length ? pts[0].c : [40.7549, -73.9840])
       const map = L.map(mapElRef.current, { scrollWheelZoom: true }).setView(center, 12)
       mapRef.current = map
-      map.on('moveend', () => {
-        const b = map.getBounds()
-        setAreaBounds([b.getSouth(), b.getWest(), b.getNorth(), b.getEast()])
-      })
       const MBX = process.env.NEXT_PUBLIC_MAPBOX_TOKEN
       if (MBX) {
         L.tileLayer(`https://api.mapbox.com/styles/v1/mapbox/streets-v12/tiles/512/{z}/{x}/{y}@2x?access_token=${MBX}`, {

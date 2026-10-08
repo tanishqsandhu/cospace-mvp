@@ -156,19 +156,39 @@ export default function RoomsPage() {
         <p className="text-gray-500 mt-1">{[listing.buildings?.name, listing.buildings?.address || listing.address, listing.buildings?.city || listing.city, listing.country].filter(Boolean).join(', ')}</p>
 
         {/* Image gallery */}
-        {images.length > 0 && (
+        {images.length === 1 && (
+          <div className="mt-6">
+            <img src={images[0].url} alt="" onClick={() => setLightbox(0)} className="rounded-lg w-full h-80 object-cover cursor-pointer hover:opacity-95 transition" />
+          </div>
+        )}
+        {images.length === 2 && (
+          <div className="grid grid-cols-2 gap-3 mt-6">
+            {images.map((img, i) => (
+              <img key={i} src={img.url} alt="" onClick={() => setLightbox(i)} className="rounded-lg w-full h-72 object-cover cursor-pointer hover:opacity-95 transition" />
+            ))}
+          </div>
+        )}
+        {images.length === 3 && (
+          <div className="grid grid-cols-2 gap-3 mt-6">
+            <img src={images[0].url} alt="" onClick={() => setLightbox(0)} className="rounded-lg w-full h-72 object-cover cursor-pointer hover:opacity-95 transition" />
+            <div className="grid grid-rows-2 gap-3">
+              {images.slice(1, 3).map((img, i) => (
+                <img key={i} src={img.url} alt="" onClick={() => setLightbox(i + 1)} className="rounded-lg w-full h-[138px] object-cover cursor-pointer hover:opacity-95 transition" />
+              ))}
+            </div>
+          </div>
+        )}
+        {images.length >= 4 && (
           <div className="grid grid-cols-2 gap-3 mt-6">
             <img src={images[0].url} alt="" onClick={() => setLightbox(0)} className="rounded-lg w-full h-72 object-cover cursor-pointer hover:opacity-95 transition" />
             <div className="grid grid-cols-2 gap-3 relative">
               {images.slice(1, 5).map((img, i) => (
                 <img key={i} src={img.url} alt="" onClick={() => setLightbox(i + 1)} className="rounded-lg w-full h-[138px] object-cover cursor-pointer hover:opacity-95 transition" />
               ))}
-              {images.length > 1 && (
-                <button onClick={() => setLightbox(0)}
-                  className="absolute bottom-2 right-2 bg-white/90 text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg shadow hover:bg-white">
-                  View all {images.length} photos
-                </button>
-              )}
+              <button onClick={() => setLightbox(0)}
+                className="absolute bottom-2 right-2 bg-white/90 text-gray-800 text-xs font-medium px-3 py-1.5 rounded-lg shadow hover:bg-white">
+                View all {images.length} photos
+              </button>
             </div>
           </div>
         )}

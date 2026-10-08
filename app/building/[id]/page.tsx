@@ -114,8 +114,9 @@ export default function BuildingPage() {
     <div className="min-h-screen bg-gray-50"><Header /><p className="text-center py-20 text-gray-500">Building not found.</p></div>
   )
 
-  const gallery: string[] = [...buildingImages]
-  for (const u of units) { const c = firstImage(u); if (c) gallery.push(c) }
+  const gallerySet = new Set<string>(buildingImages)
+  for (const u of units) { const c = firstImage(u); if (c) gallerySet.add(c) }
+  const gallery: string[] = Array.from(gallerySet)
   const prices = units.map((u) => u.price ?? 0)
   const minPrice = prices.length ? Math.min(...prices) : 0
   const maxPrice = prices.length ? Math.max(...prices) : 0

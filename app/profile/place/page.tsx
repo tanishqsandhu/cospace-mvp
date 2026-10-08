@@ -239,7 +239,7 @@ export default function CreateBuildingPage() {
       address_etc: building.address_etc, city: building.city, state: building.state,
       zip_code: building.zip_code, description: building.description,
     }
-    const geo = await geocodeAddress([building.address, building.city, building.state, building.country].filter(Boolean).join(', '))
+    const geo = await geocodeAddress([building.address, building.city, building.state, building.zip_code, building.country].filter(Boolean).join(', '))
     if (geo) { bPayload.lat = geo[0]; bPayload.lng = geo[1] }
 
     let buildingId = building.id

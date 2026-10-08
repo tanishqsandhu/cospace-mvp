@@ -51,7 +51,7 @@ export async function POST(req: Request) {
   const admin = createAdminSupabase()
   const { data: b } = await admin
     .from('buildings')
-    .select('id, address, city, state, country, lat, lng')
+    .select('id, address, city, state, zip_code, country, lat, lng')
     .eq('id', buildingId)
     .single()
   if (!b) return NextResponse.json({ error: 'Not found' }, { status: 404 })
@@ -60,7 +60,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ lat: b.lat, lng: b.lng, cached: true })
   }
 
-  const hit = await geocode([b.address, b.city, b.state, b.country])
+  const hit = await geocode([b.address, b.city, b.state, b.zip_code, b.country])
   if (!hit) return NextResponse.json({ error: 'Could not geocode' }, { status: 422 })
 
   await admin.from('buildings').update({ lat: hit[0], lng: hit[1] }).eq('id', buildingId)

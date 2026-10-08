@@ -5,23 +5,11 @@ import Link from 'next/link'
 import Header from '@/components/layout/Header'
 
 // ── Coordinate resolution ─────────────────────────────────────────────
-const ADDRESS_COORDS: Record<string, [number, number]> = {
-  '112 Greene St': [40.7240, -74.0010],
-  '1065 Avenue of the Americas': [40.7530, -73.9847],
-  '25 Kent Ave': [40.7218, -73.9634],
-  '200 Vesey St': [40.7128, -74.0152],
-  '520 W 28th St': [40.7519, -74.0048],
-  '2109 Broadway': [40.7801, -73.9820],
-}
-const CITY_COORDS: Record<string, [number, number]> = {
-  'New York': [40.7549, -73.9840],
-  'Brooklyn': [40.6782, -73.9442],
-}
+// Coordinates come from real geocoding of each building's street address
+// (persisted on buildings.lat/lng via /api/geocode). No hardcoded approximations.
 function coordsFor(l: Listing): [number, number] | null {
   const lat = (l as any).latitude, lng = (l as any).longitude
   if (typeof lat === 'number' && typeof lng === 'number') return [lat, lng]
-  if (l.address && ADDRESS_COORDS[l.address]) return ADDRESS_COORDS[l.address]
-  if (l.city && CITY_COORDS[l.city]) return CITY_COORDS[l.city]
   return null
 }
 
